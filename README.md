@@ -1,12 +1,11 @@
-# Discord.zig
+# discord.zig
+A [Zig](https://ziglang.org/) library for the [Discord](https://discord.com/) API.
 
-A high-performance bleeding edge Discord library in Zig, featuring full API coverage, sharding support, and fine-tuned parsing
-* Sharding Support: Ideal for large bots, enabling distributed load handling.
-* 100% API Coverage & Fully Typed: Offers complete access to Discord's API with strict typing for reliable and safe code.
-* High Performance: Faster than whichever library you can name (WIP)
-* Flexible Payload Parsing: Supports payload parsing through both zlib and zstd*.
-* Proper error handling
+## Getting Started
+> [!WARNING]
+> discord.zig is under active development and currently targets the latest stable version of Zig.
 
+## Example
 ```zig
 const std = @import("std");
 const Discord = @import("discord");
@@ -87,41 +86,5 @@ const dzig = b.dependency("discordzig", .{});
 exe.root_module.addImport("discord.zig", dzig.module("discord.zig"));
 ```
 
-**Warning**: the library is intended to be used with the latest dev version of Zig.
-
-## contributing
+## Contributing
 Contributions are welcome! Please open an issue or pull request if you'd like to help improve the library.
-* Support server: https://discord.gg/RBHkBt7nP5
-* The original repo: https://git.yuzucchii.xyz/yuzucchii/discord.zig
-
-## general roadmap
-| Task                                                        | Status |
-|-------------------------------------------------------------|--------|
-| make the library scalable with a gateway proxy              | ❌     |
-| get a cool logo                                             | ❌     |
-
-## missing structures
-| feature                  | Status |
-|--------------------------|--------|
-| components V2            | ❌     |
-| the tags beside ur name  | ❌     |
-
-## missing events right now
-| Event                                  | Support |
-|----------------------------------------|---------|
-| voice_channel_effect_send              | ❌      |
-| voice_state_update                     | ❌      |
-| voice_server_update                    | ❌      |
-
-## http methods missing
-| Endpoint                               | Support |
-|----------------------------------------|---------|
-| Audit log                              | ❌      |
-| Automod                                | ❌      |
-| Guild Scheduled Event related          | ❌      |
-| Guild template related                 | ❌      |
-| Soundboard related                     | ❌      |
-| Stage Instance related                 | ❌      |
-| Subscription related                   | ❌      |
-| Voice related                          | ❌      |
-| Webhook related                        | ❌      |
