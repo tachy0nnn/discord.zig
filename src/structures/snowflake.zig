@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -52,31 +53,31 @@ pub const Snowflake = enum(u64) {
         return array.toOwnedSlice();
     }
 
-    /// zjson parse
-    /// legacy
-    pub fn json(_: std.mem.Allocator) void {
-        @compileError("Deprecated, use std.json instead.");
-    }
-
-    /// std.json parse
     pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: std.json.ParseOptions) !@This() {
         const value = try std.json.innerParse(std.json.Value, allocator, src, .{
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
 
-        if (value == .string)
-            return Snowflake.fromRaw(value.string) catch
-                std.debug.panic("invalid snowflake: {s}\n", .{value.string});
-        unreachable;
+        switch (value) {
+            .string => |str| return Snowflake.fromRaw(str) catch @enumFromInt(0),
+            .integer => |int| return @enumFromInt(@intCast(int)),
+            else => return @enumFromInt(0),
+        }
     }
 
-    /// print
+    pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
+        switch (src) {
+            .string => |str| return Snowflake.fromRaw(str) catch @enumFromInt(0),
+            .integer => |int| return @enumFromInt(@intCast(int)),
+            else => return @enumFromInt(0),
+        }
+    }
+
     pub fn format(self: Snowflake, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{d}", .{self.into()});
     }
 
-    /// std.json stringify
     pub fn jsonStringify(snowflake: Snowflake, writer: anytype) !void {
         try writer.print("\"{d}\"", .{snowflake.into()});
     }
@@ -87,6 +88,6 @@ pub const Snowflake = enum(u64) {
 
     /// Calculate and return the shard ID for a given guild ID
     pub inline fn calculateShardId(self: Snowflake, shards: ?usize) u64 {
-        return (self.into() >> 22) % shards orelse 1;
+        return (self.into() >> 22) % (shards orelse 1);
     }
 };
