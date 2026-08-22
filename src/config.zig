@@ -4,7 +4,6 @@ const PremiumTypes = @import("./structures/shared.zig").PremiumTypes;
 const Snowflake = @import("./structures/snowflake.zig").Snowflake;
 const AvatarDecorationData = @import("./structures/user.zig").AvatarDecorationData;
 
-
 /// https://discord.com/developers/docs/resources/user#user-object
 /// modify this to your liking
 pub const StoredUser = struct {
@@ -166,7 +165,6 @@ pub const StoredChannel = struct {
     newly_created: ?bool = null,
 };
 
-
 /// https://discord.com/developers/docs/resources/emoji#emoji-object-emoji-structure
 /// modifyus to your liking
 pub const StoredEmoji = struct {
@@ -282,7 +280,6 @@ pub const StoredReaction = struct {
     burst_colors: [][]const u8,
 };
 
-
 /// https://discord.com/developers/docs/resources/guild#guild-member-object
 /// modify this to your liking
 pub const StoredMember = struct {
@@ -297,4 +294,3 @@ pub const StoredMember = struct {
     flags: isize,
     avatar_decoration_data: ?AvatarDecorationData = null,
 };
-
