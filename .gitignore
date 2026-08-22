@@ -5,8 +5,10 @@ zig-out
 
 *.ps1
 *.sh
+*.md
 !README.md
 !ROADMAP.md
 
 # personal trash folder (for other stuff)
 trash/
+zig-pkg/
