@@ -4,6 +4,7 @@ A [Zig](https://ziglang.org/) library for the [Discord](https://discord.com/) AP
 ## Getting Started
 > [!WARNING]
 > discord.zig is under active development and currently targets the latest stable version of Zig.
+> Codebase is very messy right now, so.. :3
 
 ## Example
 ```zig
