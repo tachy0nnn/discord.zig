@@ -61,7 +61,7 @@ pub const Snowflake = enum(u64) {
 
         switch (value) {
             .string => |str| return Snowflake.fromRaw(str) catch @enumFromInt(0),
-            .integer => |int| return @enumFromInt(@intCast(int)),
+            .integer => |int| return @enumFromInt(@as(u64, @intCast(int))),
             else => return @enumFromInt(0),
         }
     }
@@ -69,7 +69,7 @@ pub const Snowflake = enum(u64) {
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
         switch (src) {
             .string => |str| return Snowflake.fromRaw(str) catch @enumFromInt(0),
-            .integer => |int| return @enumFromInt(@intCast(int)),
+            .integer => |int| return @enumFromInt(@as(u64, @intCast(int))),
             else => return @enumFromInt(0),
         }
     }

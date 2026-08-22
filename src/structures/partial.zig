@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -21,8 +22,10 @@ pub fn Partial(comptime T: type) type {
     const info = @typeInfo(T);
     switch (info) {
         .@"struct" => |s| {
-            comptime var fields: []const builtin.Type.StructField = &[_]builtin.Type.StructField{};
-            inline for (s.fields) |field| {
+            comptime var field_names: [s.fields.len][]const u8 = undefined;
+            comptime var field_types: [s.fields.len]type = undefined;
+            comptime var field_attrs: [s.fields.len]builtin.Type.StructField.Attributes = undefined;
+            inline for (s.fields, 0..) |field, i| {
                 if (field.is_comptime) {
                     @compileError("Cannot make Partial of " ++ @typeName(T) ++ ", it has a comptime field " ++ field.name);
                 }
@@ -31,27 +34,17 @@ pub fn Partial(comptime T: type) type {
                     else => ?field.type,
                 };
                 const default_value: optional_type = null;
-                const aligned_ptr: *align(field.alignment) const anyopaque = @alignCast(@ptrCast(&default_value));
-                const optional_field: [1]builtin.Type.StructField = [_]builtin.Type.StructField{.{
-                    .alignment = field.alignment,
-                    .default_value_ptr = aligned_ptr,
-                    .is_comptime = false,
-                    .name = field.name,
-                    .type = optional_type,
-                }};
-                fields = fields ++ optional_field;
+                field_names[i] = field.name;
+                field_types[i] = optional_type;
+                field_attrs[i] = .{
+                    .@"comptime" = false,
+                    .@"align" = field.alignment,
+                    .default_value_ptr = @ptrCast(&default_value),
+                };
             }
-            const partial_type_info: builtin.Type = .{ .@"struct" = .{
-                .backing_integer = s.backing_integer,
-                .decls = &[_]builtin.Type.Declaration{},
-                .fields = fields,
-                .is_tuple = s.is_tuple,
-                .layout = s.layout,
-            } };
-            return @Type(partial_type_info);
+            return @Struct(s.layout, s.backing_integer, &field_names, &field_types, &field_attrs);
         },
         else => @compileError("Cannot make Partial of " ++ @typeName(T) ++
             ", the type must be a struct"),
     }
-    unreachable;
 }

@@ -305,6 +305,31 @@ pub const ApplicationWebhook = @import("structures/types.zig").ApplicationWebhoo
 pub const GatewayPayload = @import("structures/types.zig").GatewayPayload;
 // END USING NAMESPACE
 
+pub const UnfurledMediaItem = @import("structures/types.zig").UnfurledMediaItem;
+pub const Section = @import("structures/types.zig").Section;
+pub const SectionAccessory = @import("structures/types.zig").SectionAccessory;
+pub const TextDisplay = @import("structures/types.zig").TextDisplay;
+pub const Thumbnail = @import("structures/types.zig").Thumbnail;
+pub const MediaGalleryItem = @import("structures/types.zig").MediaGalleryItem;
+pub const MediaGallery = @import("structures/types.zig").MediaGallery;
+pub const FileComponent = @import("structures/types.zig").FileComponent;
+pub const SeparatorSpacing = @import("structures/types.zig").SeparatorSpacing;
+pub const Separator = @import("structures/types.zig").Separator;
+pub const Container = @import("structures/types.zig").Container;
+pub const Label = @import("structures/types.zig").Label;
+pub const FileUpload = @import("structures/types.zig").FileUpload;
+pub const RadioGroupOption = @import("structures/types.zig").RadioGroupOption;
+pub const RadioGroup = @import("structures/types.zig").RadioGroup;
+pub const CheckboxGroupOption = @import("structures/types.zig").CheckboxGroupOption;
+pub const CheckboxGroup = @import("structures/types.zig").CheckboxGroup;
+pub const Checkbox = @import("structures/types.zig").Checkbox;
+pub const MessageComponentV2 = @import("structures/types.zig").MessageComponentV2;
+pub const SoundboardSound = @import("structures/types.zig").SoundboardSound;
+pub const GuildSoundboardSounds = @import("structures/types.zig").GuildSoundboardSounds;
+pub const SoundboardSoundDelete = @import("structures/types.zig").SoundboardSoundDelete;
+pub const SoundboardSoundsUpdate = @import("structures/types.zig").SoundboardSoundsUpdate;
+pub const SoundboardSoundsEvent = @import("structures/types.zig").SoundboardSoundsEvent;
+
 pub const CacheTables = @import("cache/cache.zig").CacheTables;
 pub const CacheLike = @import("cache/cache.zig").CacheLike;
 pub const DefaultCache = @import("cache/cache.zig").DefaultCache;
@@ -326,6 +351,7 @@ pub const cache = @import("cache/cache.zig");
 pub const FetchReq = @import("http/http.zig").FetchReq;
 pub const FileData = @import("http/http.zig").FileData;
 pub const API = @import("http/api.zig");
+pub const ExtraAPI = @import("http/api_extra.zig");
 
 const std = @import("std");
 const mem = std.mem;
@@ -343,6 +369,7 @@ pub fn CustomisedSession(comptime Table: cache.TableTemplate) type {
 
         // there is only 1 api, therefore we don't need pointers
         api: API,
+        extra_api: ExtraAPI,
 
         pub fn init(allocator: mem.Allocator) Self {
             return .{
@@ -350,6 +377,7 @@ pub fn CustomisedSession(comptime Table: cache.TableTemplate) type {
                 .sharder = undefined,
                 .authorization = undefined,
                 .api = undefined,
+                .extra_api = undefined,
                 .cache = .defaults(allocator),
             };
         }
@@ -380,13 +408,14 @@ pub fn CustomisedSession(comptime Table: cache.TableTemplate) type {
             }
 
             self.api = API.init(self.allocator, self.authorization);
+            self.extra_api = ExtraAPI.init(self.allocator, self.authorization);
             self.cache = settings.cache orelse .defaults(self.allocator);
 
             var req = FetchReq.init(self.allocator, self.authorization);
             defer req.deinit();
 
             const res = try req.makeRequest(.GET, "/gateway/bot", null);
-            const body = try req.body.toOwnedSlice();
+            const body = try req.body.toOwnedSlice(self.allocator);
             defer self.allocator.free(body);
 
             // check status idk

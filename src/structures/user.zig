@@ -47,24 +47,24 @@ pub const User = struct {
     bot: ?bool = null,
     /// Whether the user is an Official System user (part of the urgent message system)
     system: ?bool = null,
+    /// The user's banner, or null if unset
+    banner: ?[]const u8 = null,
+    /// the user's banner color encoded as an integer representation of hexadecimal color code
+    accent_color: ?isize = null,
+    /// The public flags on a user's account
+    public_flags: ?isize = null,
     /// Whether the user has 2FA enabled on their account
     mfa_enabled: ?bool = null,
     /// The flags on a user's account
     flags: ?isize = null,
     /// The type of Nitro subscription on a user's account
     premium_type: ?PremiumTypes = null,
-    /// The public flags on a user's account
-    public_flags: ?isize = null,
-    /// the user's banner color encoded as an integer representation of hexadecimal color code
-    accent_color: ?isize = null,
     /// The user's chosen language option
-    locale: ?[]const u8 = null, // locale is probably only via OAuth2 or sum, only for real users
+    locale: ?[]const u8 = null,
     /// Whether the email on this account has been verified
     verified: ?bool = null,
     /// The user's email
     email: ?[]const u8 = null,
-    /// The user's banner, or null if unset
-    banner: ?[]const u8 = null,
 };
 
 /// https://docs.discord.food/resources/user#primary-guild-structure
@@ -209,7 +209,7 @@ pub const ApplicationRoleConnection = struct {
     /// the username on the platform a bot has connected (max 100 characters)
     platform_username: ?[]const u8 = null,
     /// object mapping application role connection metadata keys to their stringified value (max 100 characters) for the user on the platform a bot has connected
-    metadata: []Record([]const u8),
+    metadata: ?Record([]const u8) = null,
 };
 
 pub const ModifyCurrentUser = struct {

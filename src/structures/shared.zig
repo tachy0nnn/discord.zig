@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -17,23 +18,23 @@
 const std = @import("std");
 const Snowflake = @import("snowflake.zig").Snowflake;
 
-pub const PresenceStatus = enum {
+pub const PresenceStatus = enum(u8) {
     online,
     dnd,
     idle,
     offline,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
-        try writer.print("{d}", .{@intFromEnum(self)});
+        try writer.print("\"{s}\"", .{@tagName(self)});
     }
 };
 
 /// https://discord.com/developers/docs/resources/user#user-object-premium-types
-pub const PremiumTypes = enum {
-    None,
-    NitroClassic,
-    Nitro,
-    NitroBasic,
+pub const PremiumTypes = enum(u8) {
+    None = 0,
+    NitroClassic = 1,
+    Nitro = 2,
+    NitroBasic = 3,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -41,12 +42,12 @@ pub const PremiumTypes = enum {
 };
 
 /// https://discord.com/developers/docs/resources/user#user-object-user-flags
-pub const UserFlags = packed struct {
-    pub fn toRaw(self: UserFlags) u34 {
+pub const UserFlags = packed struct(u64) {
+    pub fn toRaw(self: UserFlags) u64 {
         return @bitCast(self);
     }
 
-    pub fn fromRaw(raw: u34) UserFlags {
+    pub fn fromRaw(raw: u64) UserFlags {
         return @bitCast(raw);
     }
 
@@ -55,44 +56,65 @@ pub const UserFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    DiscordEmployee: bool = false,
-    PartneredServerOwner: bool = false,
-    HypeSquadEventsMember: bool = false,
-    BugHunterLevel1: bool = false,
-    MfaSms: bool = false,
-    PremiumPromoDismissed: bool = false,
-    HouseBravery: bool = false,
-    HouseBrilliance: bool = false,
-    HouseBalance: bool = false,
-    EarlySupporter: bool = false,
-    TeamUser: bool = false,
-    PartnerOrVerificationApplication: bool = false,
-    System: bool = false,
-    HasUnreadUrgentMessages: bool = false,
-    BugHunterLevel2: bool = false,
-    UnderageDeleted: bool = false,
-    VerifiedBot: bool = false,
-    EarlyVerifiedBotDeveloper: bool = false,
-    DiscordCertifiedModerator: bool = false,
-    BotHttpInteractions: bool = false,
-    Spammer: bool = false,
-    DisablePremium: bool = false,
-    ActiveDeveloper: bool = false,
-    _pad: u10 = 0,
-    Quarantined: bool = false,
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    DiscordEmployee: bool = false, // 1 << 0
+    PartneredServerOwner: bool = false, // 1 << 1
+    HypeSquadEventsMember: bool = false, // 1 << 2
+    BugHunterLevel1: bool = false, // 1 << 3
+    MfaSms: bool = false, // 1 << 4
+    PremiumPromoDismissed: bool = false, // 1 << 5
+    HouseBravery: bool = false, // 1 << 6
+    HouseBrilliance: bool = false, // 1 << 7
+    HouseBalance: bool = false, // 1 << 8
+    EarlySupporter: bool = false, // 1 << 9
+    TeamUser: bool = false, // 1 << 10
+    IsHubspotContact: bool = false, // 1 << 11
+    System: bool = false, // 1 << 12
+    HasUnreadUrgentMessages: bool = false, // 1 << 13
+    BugHunterLevel2: bool = false, // 1 << 14
+    UnderageDeleted: bool = false, // 1 << 15
+    VerifiedBot: bool = false, // 1 << 16
+    EarlyVerifiedBotDeveloper: bool = false, // 1 << 17
+    DiscordCertifiedModerator: bool = false, // 1 << 18
+    BotHttpInteractions: bool = false, // 1 << 19
+    Spammer: bool = false, // 1 << 20
+    DisablePremium: bool = false, // 1 << 21
+    ActiveDeveloper: bool = false, // 1 << 22
+    ProvisionalAccount: bool = false, // 1 << 23
+    _pad0: u9 = 0, // 24..32
+    HighGlobalRateLimit: bool = false, // 1 << 33
+    Deleted: bool = false, // 1 << 34
+    DisabledSuspiciousActivity: bool = false, // 1 << 35
+    SelfDeleted: bool = false, // 1 << 36
+    PremiumDiscriminator: bool = false, // 1 << 37
+    UsedDesktopClient: bool = false, // 1 << 38
+    UsedWebClient: bool = false, // 1 << 39
+    UsedMobileClient: bool = false, // 1 << 40
+    Disabled: bool = false, // 1 << 41
+    _pad1: u1 = 0, // 42
+    HasSessionStarted: bool = false, // 1 << 43
+    Quarantined: bool = false, // 1 << 44
+    _pad2: u2 = 0, // 45..46
+    PremiumEligibleForUniqueUsername: bool = false, // 1 << 47
+    _pad3: u2 = 0, // 48..49
+    Collaborator: bool = false, // 1 << 50
+    RestrictedCollaborator: bool = false, // 1 << 51
+    _pad4: u12 = 0, // 52..63
 };
 
-pub const PremiumUsageFlags = packed struct {
+pub const PremiumUsageFlags = packed struct(u8) {
     pub fn toRaw(self: PremiumUsageFlags) u8 {
         return @bitCast(self);
     }
@@ -106,14 +128,17 @@ pub const PremiumUsageFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
+    }
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
     }
 
     PremiumDiscriminator: bool = false,
@@ -122,7 +147,7 @@ pub const PremiumUsageFlags = packed struct {
     _pad: u5 = 0,
 };
 
-pub const PurchasedFlags = packed struct {
+pub const PurchasedFlags = packed struct(u8) {
     pub fn toRaw(self: PurchasedFlags) u8 {
         return @bitCast(self);
     }
@@ -131,14 +156,34 @@ pub const PurchasedFlags = packed struct {
         return @bitCast(raw);
     }
 
+    pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: std.json.ParseOptions) !@This() {
+        const value = try std.json.innerParse(std.json.Value, allocator, src, .{
+            .ignore_unknown_fields = true,
+            .max_value_len = 0x1000,
+        });
+        if (value != .integer) return fromRaw(0);
+        return fromRaw(@intCast(value.integer));
+    }
+
+    pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
+        if (src != .integer) return fromRaw(0);
+        return fromRaw(@intCast(src.integer));
+    }
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
     NitroClassic: bool = false,
     Nitro: bool = false,
     GuildBoost: bool = false,
     NitroBasic: bool = false,
-    _pad: u4 = 0,
+    OnReverseTrial: bool = false,
+    _pad: u3 = 0,
 };
 
-pub const MemberFlags = packed struct {
+// https://docs.discord.food/resources/guild#guild-member-flags
+pub const MemberFlags = packed struct(u16) {
     pub fn toRaw(self: MemberFlags) u16 {
         return @bitCast(self);
     }
@@ -152,21 +197,24 @@ pub const MemberFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
     ///
     /// Member has left and rejoined the guild
     ///
     /// @remarks
     /// This value is not editable
-    ////Message
     DidRejoin: bool = false,
     ///
     /// Member has completed onboarding
@@ -212,7 +260,7 @@ pub const MemberFlags = packed struct {
     /// This value is not editable
     ////
     AutomodQuarantinedUsername: bool = false,
-    _pad: u1 = 0,
+    _pad8: u1 = 0,
     ///
     /// Member has dismissed the DM settings upsell
     ///
@@ -220,11 +268,12 @@ pub const MemberFlags = packed struct {
     /// This value is not editable
     ////
     DmSettingsUpsellAcknowledged: bool = false,
-    _pad2: u6 = 0,
+    AutomodQuarantinedGuildTag: bool = false,
+    _pad11_15: u5 = 0,
 };
 
 /// https://discord.com/developers/docs/resources/channel#channels-resource
-pub const ChannelFlags = packed struct {
+pub const ChannelFlags = packed struct(u32) {
     pub fn toRaw(self: ChannelFlags) u32 {
         return @bitCast(self);
     }
@@ -238,35 +287,51 @@ pub const ChannelFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    None: bool = false,
-    /// this thread is pinned to the top of its parent `GUILD_FORUM` channel
-    Pinned: bool = false,
-    _pad: u3 = 0,
-    /// Whether a tag is required to be specified when creating a thread in a `GUILD_FORUM` or a GUILD_MEDIA channel. Tags are specified in the `applied_tags` field.
-    RequireTag: bool = false,
-    _pad1: u11 = 0,
-    /// When set hides the embedded media download options. Available only for media channels.
-    HideMediaDownloadOptions: bool = false,
-    _pad2: u14,
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    GuildFeedRemoved: bool = false, // 1 << 0
+    Pinned: bool = false, // 1 << 1
+    ActiveChannelsRemoved: bool = false, // 1 << 2
+    _pad0: u1 = 0,
+    RequireTag: bool = false, // 1 << 4
+    IsSpam: bool = false, // 1 << 5
+    _pad1: u1 = 0,
+    IsGuildResourceChannel: bool = false, // 1 << 7
+    ClydeAi: bool = false, // 1 << 8
+    IsScheduledForDeletion: bool = false, // 1 << 9
+    IsMediaChannel: bool = false, // 1 << 10
+    SummariesDisabled: bool = false, // 1 << 11
+    ApplicationShelfConsent: bool = false, // 1 << 12
+    IsRoleSubscriptionTemplatePreviewChannel: bool = false, // 1 << 13
+    IsBroadcasting: bool = false, // 1 << 14
+    HideMediaDownloadOptions: bool = false, // 1 << 15
+    IsJoinRequestInterviewChannel: bool = false, // 1 << 16
+    Obfuscated: bool = false, // 1 << 17
+    _pad2: u1 = 0,
+    IsModeratorReportChannel: bool = false, // 1 << 19
+    _pad3: u1 = 0,
+    IsSpoilerChannel: bool = false, // 1 << 21
+    _pad4: u10 = 0,
 };
 
 /// https://discord.com/developers/docs/topics/permissions#role-object-role-flags
-pub const RoleFlags = packed struct {
-    pub fn toRaw(self: RoleFlags) u2 {
+pub const RoleFlags = packed struct(u32) {
+    pub fn toRaw(self: RoleFlags) u32 {
         return @bitCast(self);
     }
 
-    pub fn fromRaw(raw: u2) RoleFlags {
+    pub fn fromRaw(raw: u32) RoleFlags {
         return @bitCast(raw);
     }
 
@@ -275,22 +340,24 @@ pub const RoleFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    None: bool = false,
-    /// Role can be selected by members in an onboarding prompt
-    InPrompt: bool = false,
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    InPrompt: bool = false, // 1 << 0
+    _pad: u31 = 0,
 };
 
-pub const AttachmentFlags = packed struct {
+pub const AttachmentFlags = packed struct(u8) {
     pub fn toRaw(self: AttachmentFlags) u8 {
         return @bitCast(self);
     }
@@ -304,25 +371,31 @@ pub const AttachmentFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    None: bool = false,
-    _pad: u1 = 0,
-    /// This attachment has been edited using the remix feature on mobile
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    IsClip: bool = false,
+    IsThumbnail: bool = false,
     IsRemix: bool = false,
-    _pad1: u5 = 0,
+    IsSpoiler: bool = false,
+    ContainsExplicitMedia: bool = false,
+    IsAnimated: bool = false,
+    ContainsGoreContent: bool = false,
+    ContainsSelfHarmContent: bool = false,
 };
 
 /// https://discord.com/developers/docs/monetization/skus#sku-object-sku-flags
-pub const SkuFlags = packed struct {
+pub const SkuFlags = packed struct(u16) {
     pub fn toRaw(self: SkuFlags) u16 {
         return @bitCast(self);
     }
@@ -336,34 +409,41 @@ pub const SkuFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    _pad: u2 = 0,
-    /// SKU is available for purchase
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    PremiumPurchase: bool = false,
+    HasFreePremiumContent: bool = false,
     Available: bool = false,
-    _pad1: u5 = 0,
-    /// Recurring SKU that can be purchased by a user and applied to a single server. Grants access to every user in that server.
-    GuildSubscription: bool = false,
-    /// Recurring SKU purchased by a user for themselves. Grants access to the purchasing user in every server.
-    UserSubscription: bool = false,
-    _pad2: u6,
+    PremiumAndDistribution: bool = false,
+    Sticker: bool = false,
+    GuildRole: bool = false,
+    AvailableForSubscriptionGifting: bool = false,
+    ApplicationGuildSubscription: bool = false,
+    ApplicationUserSubscription: bool = false,
+    CreatorMonetization: bool = false,
+    GuildProduct: bool = false,
+    AvailableForApplicationGifting: bool = false,
+    _pad: u4 = 0,
 };
 
 /// https://discord.com/developers/docs/resources/channel#message-object-message-flags
-pub const MessageFlags = packed struct {
-    pub fn toRaw(self: MessageFlags) u16 {
+pub const MessageFlags = packed struct(u32) {
+    pub fn toRaw(self: MessageFlags) u32 {
         return @bitCast(self);
     }
 
-    pub fn fromRaw(raw: u16) MessageFlags {
+    pub fn fromRaw(raw: u32) MessageFlags {
         return @bitCast(raw);
     }
 
@@ -372,49 +452,49 @@ pub const MessageFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
-    /// This message has been published to subscribed channels (via Channel Following)
-    Crossposted: bool = false,
-    /// This message originated from a message in another channel (via Channel Following)
-    IsCrosspost: bool = false,
-    /// Do not include any embeds when serializing this message
-    SuppressEmbeds: bool = false,
-    /// The source message for this crosspost has been deleted (via Channel Following)
-    SourceMessageDeleted: bool = false,
-    /// This message came from the urgent message system
-    Urgent: bool = false,
-    /// This message has an associated thread, with the same id as the message
-    HasThread: bool = false,
-    /// This message is only visible to the user who invoked the Interaction
-    Ephemeral: bool = false,
-    /// This message is an Interaction Response and the bot is "thinking"
-    Loading: bool = false,
-    /// This message failed to mention some roles and add their members to the thread
-    FailedToMentionSomeRolesInThread: bool = false,
-    _pad: u4 = 0,
-    /// This message will not trigger push and desktop notifications
-    SuppressNotifications: bool = false,
-    /// This message is a voice message
-    IsVoiceMessage: bool = false,
-    _pad1: u1 = 0,
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    Crossposted: bool = false, // 1 << 0
+    IsCrosspost: bool = false, // 1 << 1
+    SuppressEmbeds: bool = false, // 1 << 2
+    SourceMessageDeleted: bool = false, // 1 << 3
+    Urgent: bool = false, // 1 << 4
+    HasThread: bool = false, // 1 << 5
+    Ephemeral: bool = false, // 1 << 6
+    Loading: bool = false, // 1 << 7
+    FailedToMentionSomeRolesInThread: bool = false, // 1 << 8
+    GuildFeedHidden: bool = false, // 1 << 9
+    ShouldShowLinkNotDiscordWarning: bool = false, // 1 << 10
+    _pad0: u1 = 0, // 1 << 11
+    SuppressNotifications: bool = false, // 1 << 12
+    IsVoiceMessage: bool = false, // 1 << 13
+    HasSnapshot: bool = false, // 1 << 14
+    IsComponentsV2: bool = false, // 1 << 15
+    SentBySocialLayerIntegration: bool = false, // 1 << 16
+    HiddenSuspendedUser: bool = false, // 1 << 17
+    IsFirstBooster: bool = false, // 1 << 18
+    IsGuildOfficial: bool = false, // 1 << 19
+    _pad1: u12 = 0,
 };
 
 /// https://discord.com/developers/docs/topics/gateway-events#activity-object-activity-flags
-pub const ActivityFlags = packed struct {
-    pub fn toRaw(self: MessageFlags) u16 {
+pub const ActivityFlags = packed struct(u16) {
+    pub fn toRaw(self: ActivityFlags) u16 {
         return @bitCast(self);
     }
 
-    pub fn fromRaw(raw: u16) MessageFlags {
+    pub fn fromRaw(raw: u16) ActivityFlags {
         return @bitCast(raw);
     }
 
@@ -423,14 +503,17 @@ pub const ActivityFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
+    }
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
     }
 
     Instance: bool = false,
@@ -442,104 +525,128 @@ pub const ActivityFlags = packed struct {
     PartyPrivacyFriends: bool = false,
     PartyPrivacyVoiceChannel: bool = false,
     Embedded: bool = false,
-    _pad: u7 = 0,
+    Contextless: bool = false,
+    _pad: u6 = 0,
 };
 
 /// https://discord.com/developers/docs/resources/guild#integration-object-integration-expire-behaviors
-pub const IntegrationExpireBehaviors = enum {
-    RemoveRole,
-    Kick,
-};
-
-/// https://discord.com/developers/docs/topics/teams#data-models-membership-state-enum
-pub const TeamMembershipStates = enum(u4) {
-    Invited = 1,
-    Accepted = 2,
-};
-
-/// https://discord.com/developers/docs/topics/oauth2#application-application-flags
-pub const ApplicationFlags = packed struct {
-    pub fn toRaw(self: ApplicationFlags) u32 {
-        return @bitCast(self);
-    }
-
-    pub fn fromRaw(raw: u32) ApplicationFlags {
-        return @bitCast(raw);
-    }
-
-    // this should be the default behavior
-    // but unfortunately the zig std devs have nothing in their heads
-    // so we have to do this manually for each struct, what a fucking nightmare
-    // I have no clue what to do for bigger ints, I'll figure it out
-    pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: std.json.ParseOptions) !@This() {
-        const value = try std.json.innerParse(std.json.Value, allocator, src, .{
-            .ignore_unknown_fields = true,
-            .max_value_len = 0x1000,
-        });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
-        return fromRaw(@intCast(value.integer));
-    }
-
-    pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
-        return fromRaw(@intCast(src.integer));
-    }
-
-    _pad: u5 = 0,
-    /// Indicates if an app uses the Auto Moderation API.
-    ApplicationAutoModerationRuleCreateBadge: bool = false,
-    _pad1: u6 = 0,
-    /// Intent required for bots in **100 or more servers*  /// to receive 'presence_update' events
-    GatewayPresence: bool = false,
-    /// Intent required for bots in under 100 servers to receive 'presence_update' events
-    GatewayPresenceLimited: bool = false,
-    /// Intent required for bots in **100 or more servers*  /// to receive member-related events like 'guild_member_add'.
-    GatewayGuildMembers: bool = false,
-    /// Intent required for bots in under 100 servers to receive member-related events like 'guild_member_add'.
-    GatewayGuildMembersLimited: bool = false,
-    /// Indicates unusual growth of an app that prevents verification
-    VerificationPendingGuildLimit: bool = false,
-    /// Indicates if an app is embedded within the Discord client (currently unavailable publicly)
-    Embedded: bool = false,
-    /// Intent required for bots in **100 or more servers*  /// to receive [message content](https://support-dev.discord.com/hc/en-us/articles/4404772028055)
-    GatewayMessageContent: bool = false,
-    /// Intent required for bots in under 100 servers to receive [message content](https://support-dev.discord.com/hc/en-us/articles/4404772028055), found in Bot Settings
-    GatewayMessageContentLimited: bool = false,
-    _pad2: u4 = 0,
-    /// Indicates if an app has registered global application commands
-    ApplicationCommandBadge: bool = false,
-    _pad3: u7,
-};
-
-/// https://discord.com/developers/docs/interactions/message-components#component-types
-pub const MessageComponentTypes = enum(u4) {
-    /// A container for other components
-    ActionRow = 1,
-    /// A button object
-    Button,
-    /// A select menu for picking from choices
-    SelectMenu,
-    /// A text input object
-    InputText,
-    /// Select menu for users
-    SelectMenuUsers,
-    /// Select menu for roles
-    SelectMenuRoles,
-    /// Select menu for users and roles
-    SelectMenuUsersAndRoles,
-    /// Select menu for channels
-    SelectMenuChannels,
+pub const IntegrationExpireBehaviors = enum(u8) {
+    RemoveRole = 0,
+    Kick = 1,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const TextStyles = enum(u4) {
-    /// Intended for short single-line text
+/// https://discord.com/developers/docs/topics/teams#data-models-membership-state-enum
+pub const TeamMembershipStates = enum(u8) {
+    Invited = 1,
+    Accepted = 2,
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{@intFromEnum(self)});
+    }
+};
+
+/// https://discord.com/developers/docs/topics/oauth2#application-application-flags
+pub const ApplicationFlags = packed struct(u64) {
+    pub fn toRaw(self: ApplicationFlags) u64 {
+        return @bitCast(self);
+    }
+
+    pub fn fromRaw(raw: u64) ApplicationFlags {
+        return @bitCast(raw);
+    }
+
+    pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: std.json.ParseOptions) !@This() {
+        const value = try std.json.innerParse(std.json.Value, allocator, src, .{
+            .ignore_unknown_fields = true,
+            .max_value_len = 0x1000,
+        });
+        if (value != .integer) return fromRaw(0);
+        return fromRaw(@intCast(value.integer));
+    }
+
+    pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
+        if (src != .integer) return fromRaw(0);
+        return fromRaw(@intCast(src.integer));
+    }
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
+
+    _pad0: u1 = 0, // 0
+    EmbeddedReleased: bool = false, // 1 << 1
+    ManagedEmoji: bool = false, // 1 << 2
+    EmbeddedIap: bool = false, // 1 << 3
+    GroupDmCreate: bool = false, // 1 << 4
+    RpcPrivateBeta: bool = false, // 1 << 5
+    ApplicationAutoModerationRuleCreateBadge: bool = false, // 1 << 6
+    GameProfileDisabled: bool = false, // 1 << 7
+    PublicOauth2Client: bool = false, // 1 << 8
+    ContextlessActivity: bool = false, // 1 << 9
+    SocialLayerIntegrationLimited: bool = false, // 1 << 10
+    CloudGamingDemo: bool = false, // 1 << 11
+    GatewayPresence: bool = false, // 1 << 12
+    GatewayPresenceLimited: bool = false, // 1 << 13
+    GatewayGuildMembers: bool = false, // 1 << 14
+    GatewayGuildMembersLimited: bool = false, // 1 << 15
+    VerificationPendingGuildLimit: bool = false, // 1 << 16
+    Embedded: bool = false, // 1 << 17
+    GatewayMessageContent: bool = false, // 1 << 18
+    GatewayMessageContentLimited: bool = false, // 1 << 19
+    EmbeddedFirstParty: bool = false, // 1 << 20
+    ApplicationCommandMigrated: bool = false, // 1 << 21
+    _pad1: u1 = 0, // 22
+    ApplicationCommandBadge: bool = false, // 1 << 23
+    Active: bool = false, // 1 << 24
+    ActiveGracePeriod: bool = false, // 1 << 25
+    IFrameModal: bool = false, // 1 << 26
+    SocialLayerIntegration: bool = false, // 1 << 27
+    _pad2: u1 = 0, // 28
+    Promoted: bool = false, // 1 << 29
+    Partner: bool = false, // 1 << 30
+    _pad3: u2 = 0, // 31..32
+    Parent: bool = false, // 1 << 33
+    DisableRelationshipAccess: bool = false, // 1 << 34
+    StorefrontEligible: bool = false, // 1 << 35
+    _pad4: u28 = 0, // 36..63
+};
+
+/// https://discord.com/developers/docs/interactions/message-components#component-types
+pub const MessageComponentTypes = enum(u8) {
+    ActionRow = 1,
+    Button = 2,
+    StringSelect = 3,
+    InputText = 4,
+    UserSelect = 5,
+    RoleSelect = 6,
+    MentionableSelect = 7,
+    ChannelSelect = 8,
+    Section = 9,
+    TextDisplay = 10,
+    Thumbnail = 11,
+    MediaGallery = 12,
+    File = 13,
+    Separator = 14,
+    ContentInventoryEntry = 16,
+    Container = 17,
+    Label = 18,
+    FileUpload = 19,
+    CheckpointCard = 20,
+    RadioGroup = 21,
+    CheckboxGroup = 22,
+    Checkbox = 23,
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{@intFromEnum(self)});
+    }
+};
+
+pub const TextStyles = enum(u8) {
     Short = 1,
-    /// Intended for much longer inputs
     Paragraph = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
@@ -548,19 +655,13 @@ pub const TextStyles = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/interactions/message-components#buttons-button-styles
-pub const ButtonStyles = enum(u4) {
-    /// A blurple button
+pub const ButtonStyles = enum(u8) {
     Primary = 1,
-    /// A grey button
-    Secondary,
-    /// A green button
-    Success,
-    /// A red button
-    Danger,
-    /// A button that navigates to a URL
-    Link,
-    /// A blurple button to show a Premium item in the shop
-    Premium,
+    Secondary = 2,
+    Success = 3,
+    Danger = 4,
+    Link = 5,
+    Premium = 6,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -569,26 +670,20 @@ pub const ButtonStyles = enum(u4) {
 
 /// https://discord.com/developers/docs/resources/channel#allowed-mentions-object-allowed-mention-types
 pub const AllowedMentionsTypes = enum {
-    /// Controls role mentions
     roles,
-    /// Controls user mentions
     users,
-    /// Controls \@everyone and \@here mentions
     everyone,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
-        try writer.print("{d}", .{@intFromEnum(self)});
+        try writer.print("\"{s}\"", .{@tagName(self)});
     }
 };
 
 /// https://discord.com/developers/docs/resources/webhook#webhook-object-webhook-types
-pub const WebhookTypes = enum(u4) {
-    /// Incoming Webhooks can post messages to channels with a generated token
+pub const WebhookTypes = enum(u8) {
     Incoming = 1,
-    /// Channel Follower Webhooks are internal webhooks used with Channel Following to post new messages into channels
-    ChannelFollower,
-    /// Application webhooks are webhooks used with Interactions
-    Application,
+    ChannelFollower = 2,
+    Application = 3,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -596,7 +691,6 @@ pub const WebhookTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/resources/channel#embed-object-embed-types
-/// perhaps union?
 pub const EmbedTypes = enum {
     rich,
     image,
@@ -604,19 +698,24 @@ pub const EmbedTypes = enum {
     gifv,
     article,
     link,
-    poll_res,
+    poll_result,
+    auto_moderation_message,
+    auto_moderation_notification,
+    safety_policy_notice,
+    safety_system_notification,
+    age_verification_system_notification,
+    post_preview,
+    gift,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
-        try writer.print("{d}", .{@intFromEnum(self)});
+        try writer.print("\"{s}\"", .{@tagName(self)});
     }
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-default-message-notification-level
-pub const DefaultMessageNotificationLevels = enum {
-    /// Members will receive notifications for all messages by default
-    AllMessages,
-    /// Members will receive notifications only for messages that \@mention them by default
-    OnlyMentions,
+pub const DefaultMessageNotificationLevels = enum(u8) {
+    AllMessages = 0,
+    OnlyMentions = 1,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -624,13 +723,10 @@ pub const DefaultMessageNotificationLevels = enum {
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-explicit-content-filter-level
-pub const ExplicitContentFilterLevels = enum {
-    /// Media content will not be scanned
-    Disabled,
-    /// Media content sent by members without roles will be scanned
-    MembersWithoutRoles,
-    /// Media content sent by all members will be scanned
-    AllMembers,
+pub const ExplicitContentFilterLevels = enum(u8) {
+    Disabled = 0,
+    MembersWithoutRoles = 1,
+    AllMembers = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -638,17 +734,12 @@ pub const ExplicitContentFilterLevels = enum {
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-verification-level
-pub const VerificationLevels = enum {
-    /// Unrestricted
-    None,
-    /// Must have verified email on account
-    Low,
-    /// Must be registered on Discord for longer than 5 minutes
-    Medium,
-    /// Must be a member of the server for longer than 10 minutes
-    High,
-    /// Must have a verified phone number
-    VeryHigh,
+pub const VerificationLevels = enum(u8) {
+    None = 0,
+    Low = 1,
+    Medium = 2,
+    High = 3,
+    VeryHigh = 4,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -657,70 +748,64 @@ pub const VerificationLevels = enum {
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-guild-features
 pub const GuildFeatures = enum {
-    /// Guild has access to set an invite splash background
     INVITE_SPLASH,
-    /// Guild has access to set a vanity URL
+    VIP_REGIONS,
     VANITY_URL,
-    /// Guild is verified
     VERIFIED,
-    /// Guild is partnered
     PARTNERED,
-    /// Guild can enable welcome screen, Membership Screening, stage channels and discovery, and receives community updates
     COMMUNITY,
-    /// Guild has enabled monetization.
-    CREATOR_MONETIZABLE_PROVISIONAL,
-    /// Guild has enabled the role subscription promo page.
-    CREATOR_STORE_PAGE,
-    /// Guild has been set as a support server on the App Directory
+    COMMUNITY_CANARY,
     DEVELOPER_SUPPORT_SERVER,
-    /// Guild has access to create news channels
     NEWS,
-    /// Guild is able to be discovered in the directory
     DISCOVERABLE,
-    /// Guild is able to be featured in the directory
     FEATURABLE,
-    /// Guild has access to set an animated guild icon
     ANIMATED_ICON,
-    /// Guild has access to set a guild banner image
     BANNER,
-    /// Guild has enabled the welcome screen
-    WELCOME_SCREEN_ENABLED,
-    /// Guild has enabled [Membership Screening](https://discord.com/developers/docs/resources/guild#membership-screening-object)
-    MEMBER_VERIFICATION_GATE_ENABLED,
-    /// Guild can be previewed before joining via Membership Screening or the directory
-    PREVIEW_ENABLED,
-    /// Guild has enabled ticketed events
-    TICKETED_EVENTS_ENABLED,
-    /// Guild has increased custom sticker slots
-    MORE_STICKERS,
-    /// Guild is able to set role icons
-    ROLE_ICONS,
-    /// Guild has role subscriptions that can be purchased.
-    ROLE_SUBSCRIPTIONS_AVAILABLE_FOR_PURCHASE,
-    /// Guild has enabled role subscriptions.
-    ROLE_SUBSCRIPTIONS_ENABLED,
-    /// Guild has set up auto moderation rules
-    AUTO_MODERATION,
-    /// Guild has paused invites, preventing new users from joining
-    INVITES_DISABLED,
-    /// Guild has access to set an animated guild banner image
     ANIMATED_BANNER,
-    /// Guild has disabled alerts for join raids in the configured safety alerts channel
+    WELCOME_SCREEN_ENABLED,
+    MEMBER_VERIFICATION_GATE_ENABLED,
+    MEMBER_VERIFICATION_MANUAL_APPROVAL,
+    PREVIEW_ENABLED,
+    TICKETED_EVENTS_ENABLED,
+    MORE_STICKERS,
+    MORE_EMOJI,
+    MORE_SOUNDBOARD,
+    ROLE_ICONS,
+    ENHANCED_ROLE_COLORS,
+    ROLE_SUBSCRIPTIONS_AVAILABLE_FOR_PURCHASE,
+    ROLE_SUBSCRIPTIONS_ENABLED,
+    AUTO_MODERATION,
+    INVITES_DISABLED,
     RAID_ALERTS_DISABLED,
-    /// Guild is using the old permissions configuration behavior
+    NON_COMMUNITY_RAID_ALERTS,
+    GUILD_ONBOARDING,
+    GUILD_ONBOARDING_EVER_ENABLED,
+    GUILD_ONBOARDING_HAS_PROMPTS,
+    GUILD_SERVER_GUIDE,
+    GUILD_PRODUCTS,
+    GUILD_TAGS,
+    SOUNDBOARD,
+    SUMMARIES_ENABLED_GA,
+    SUMMARIES_ENABLED_BY_USER,
+    SUMMARIES_DISABLED_BY_USER,
+    RELAY_ENABLED,
+    TIERLESS_BOOSTING,
+    GAME_SERVERS,
+    GAME_SERVER_HOSTING,
     APPLICATION_COMMAND_PERMISSIONS_V2,
+    CREATOR_MONETIZABLE,
+    CREATOR_MONETIZABLE_PROVISIONAL,
+    CREATOR_STORE_PAGE,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
-        try writer.print("{d}", .{@intFromEnum(self)});
+        try writer.print("\"{s}\"", .{@tagName(self)});
     }
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-mfa-level
-pub const MfaLevels = enum {
-    /// Guild has no MFA/2FA requirement for moderation actions
-    None,
-    /// Guild has a 2FA requirement for moderation actions
-    Elevated,
+pub const MfaLevels = enum(u8) {
+    None = 0,
+    Elevated = 1,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -728,12 +813,12 @@ pub const MfaLevels = enum {
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-system-channel-flags
-pub const SystemChannelFlags = packed struct {
-    pub fn toRaw(self: SystemChannelFlags) u8 {
+pub const SystemChannelFlags = packed struct(u16) {
+    pub fn toRaw(self: SystemChannelFlags) u16 {
         return @bitCast(self);
     }
 
-    pub fn fromRaw(raw: u8) SystemChannelFlags {
+    pub fn fromRaw(raw: u16) SystemChannelFlags {
         return @bitCast(raw);
     }
 
@@ -742,38 +827,37 @@ pub const SystemChannelFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
+        if (value != .integer) return fromRaw(0);
         return fromRaw(@intCast(value.integer));
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
+        if (src != .integer) return fromRaw(0);
         return fromRaw(@intCast(src.integer));
     }
 
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("{d}", .{self.toRaw()});
+    }
 
-    /// Suppress member join notifications
-    SuppressJoinNotifications: bool = false,
-    /// Suppress server boost notifications
-    SuppressPremiumSubscriptions: bool = false,
-    /// Suppress server setup tips
-    SuppressGuildReminderNotifications: bool = false,
-    /// Hide member join sticker reply buttons
-    SuppressJoinNotificationReplies: bool = false,
-    _pad: u4 = 0,
+    SuppressJoinNotifications: bool = false, // 1 << 0
+    SuppressPremiumSubscriptions: bool = false, // 1 << 1
+    SuppressGuildReminderNotifications: bool = false, // 1 << 2
+    SuppressJoinNotificationReplies: bool = false, // 1 << 3
+    SuppressRoleSubscriptionPurchaseNotifications: bool = false, // 1 << 4
+    SuppressRoleSubscriptionPurchaseNotificationReplies: bool = false, // 1 << 5
+    _pad0: u1 = 0, // 1 << 6
+    SuppressChannelPromptDeadchat: bool = false, // 1 << 7
+    SuppressUgcAddedNotifications: bool = false, // 1 << 8
+    _pad1: u7 = 0,
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-premium-tier
-pub const PremiumTiers = enum {
-    /// Guild has not unlocked any Server Boost perks
-    None,
-    /// Guild has unlocked Server Boost level 1 perks
-    Tier1,
-    /// Guild has unlocked Server Boost level 2 perks
-    Tier2,
-    /// Guild has unlocked Server Boost level 3 perks
-    Tier3,
+pub const PremiumTiers = enum(u8) {
+    None = 0,
+    Tier1 = 1,
+    Tier2 = 2,
+    Tier3 = 3,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -781,11 +865,11 @@ pub const PremiumTiers = enum {
 };
 
 /// https://discord.com/developers/docs/resources/guild#guild-object-guild-nsfw-level
-pub const GuildNsfwLevel = enum {
-    Default,
-    Explicit,
-    Safe,
-    AgeRestricted,
+pub const GuildNsfwLevel = enum(u8) {
+    Default = 0,
+    Explicit = 1,
+    Safe = 2,
+    AgeRestricted = 3,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -793,53 +877,41 @@ pub const GuildNsfwLevel = enum {
 };
 
 /// https://discord.com/developers/docs/resources/channel#channel-object-channel-types
-pub const ChannelTypes = enum(u16) {
-    /// A text channel within a server
-    GuildText,
-    /// A direct message between users
-    DM,
-    /// A voice channel within a server
-    GuildVoice,
-    /// A direct message between multiple users
-    GroupDm,
-    /// An organizational category that contains up to 50 channels
-    GuildCategory,
-    /// A channel that users can follow and crosspost into their own server
-    GuildAnnouncement,
-    /// A temporary sub-channel within a GUILD_ANNOUNCEMENT channel
-    AnnouncementThread = 10,
-    /// A temporary sub-channel within a GUILD_TEXT or GUILD_FORUM channel
-    PublicThread,
-    /// A temporary sub-channel within a GUILD_TEXT channel that is only viewable by those invited and those with the MANAGE_THREADS permission
-    PrivateThread,
-    /// A voice channel for hosting events with an audience
-    GuildStageVoice,
-    /// A channel in a hub containing the listed servers
-    GuildDirectory,
-    /// A channel which can only contains threads
-    GuildForum,
-    /// Channel that can only contain threads, similar to GUILD_FORUM channels
-    GuildMedia,
+pub const ChannelTypes = enum(u8) {
+    GuildText = 0,
+    DM = 1,
+    GuildVoice = 2,
+    GroupDm = 3,
+    GuildCategory = 4,
+    GuildNews = 5,
+    GuildStore = 6,
+    NewsThread = 10,
+    PublicThread = 11,
+    PrivateThread = 12,
+    GuildStageVoice = 13,
+    GuildDirectory = 14,
+    GuildForum = 15,
+    GuildMedia = 16,
+    Lobby = 17,
+    EphemeralDm = 18,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const OverwriteTypes = enum {
-    Role,
-    Member,
+pub const OverwriteTypes = enum(u8) {
+    Role = 0,
+    Member = 1,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const VideoQualityModes = enum(u4) {
-    /// Discord chooses the quality for optimal performance
+pub const VideoQualityModes = enum(u8) {
     Auto = 1,
-    /// 720p
-    Full,
+    Full = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -847,13 +919,14 @@ pub const VideoQualityModes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/topics/gateway-events#activity-object-activity-types
-pub const ActivityTypes = enum(u4) {
+pub const ActivityTypes = enum(u8) {
     Playing = 0,
     Streaming = 1,
     Listening = 2,
     Watching = 3,
     Custom = 4,
     Competing = 5,
+    Hang = 6,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -862,43 +935,67 @@ pub const ActivityTypes = enum(u4) {
 
 /// https://discord.com/developers/docs/resources/channel#message-object-message-types
 pub const MessageTypes = enum(u8) {
-    Default,
-    RecipientAdd,
-    RecipientRemove,
-    Call,
-    ChannelNameChange,
-    ChannelIconChange,
-    ChannelPinnedMessage,
-    UserJoin,
-    GuildBoost,
-    GuildBoostTier1,
-    GuildBoostTier2,
-    GuildBoostTier3,
-    ChannelFollowAdd,
+    Default = 0,
+    RecipientAdd = 1,
+    RecipientRemove = 2,
+    Call = 3,
+    ChannelNameChange = 4,
+    ChannelIconChange = 5,
+    ChannelPinnedMessage = 6,
+    UserJoin = 7,
+    GuildBoost = 8,
+    GuildBoostTier1 = 9,
+    GuildBoostTier2 = 10,
+    GuildBoostTier3 = 11,
+    ChannelFollowAdd = 12,
     GuildDiscoveryDisqualified = 14,
-    GuildDiscoveryRequalified,
-    GuildDiscoveryGracePeriodInitialWarning,
-    GuildDiscoveryGracePeriodFinalWarning,
-    ThreadCreated,
-    Reply,
-    ChatInputCommand,
-    ThreadStarterMessage,
-    GuildInviteReminder,
-    ContextMenuCommand,
-    AutoModerationAction,
-    RoleSubscriptionPurchase,
-    InteractionPremiumUpsell,
-    StageStart,
-    StageEnd,
-    StageSpeaker,
+    GuildDiscoveryRequalified = 15,
+    GuildDiscoveryGracePeriodInitialWarning = 16,
+    GuildDiscoveryGracePeriodFinalWarning = 17,
+    ThreadCreated = 18,
+    Reply = 19,
+    ChatInputCommand = 20,
+    ThreadStarterMessage = 21,
+    GuildInviteReminder = 22,
+    ContextMenuCommand = 23,
+    AutoModerationAction = 24,
+    RoleSubscriptionPurchase = 25,
+    InteractionPremiumUpsell = 26,
+    StageStart = 27,
+    StageEnd = 28,
+    StageSpeaker = 29,
+    StageRaiseHand = 30,
     StageTopic = 31,
-    GuildApplicationPremiumSubscription,
+    GuildApplicationPremiumSubscription = 32,
+    PremiumReferral = 35,
     GuildIncidentAlertModeEnabled = 36,
-    GuildIncidentAlertModeDisabled,
-    GuildIncidentReportRaid,
-    GuildIncidentReportFalseAlarm,
+    GuildIncidentAlertModeDisabled = 37,
+    GuildIncidentReportRaid = 38,
+    GuildIncidentReportFalseAlarm = 39,
+    GuildDeadchatRevivePrompt = 40,
+    CustomGift = 41,
+    GuildGamingStatsPrompt = 42,
     PurchaseNotification = 44,
     PollResult = 46,
+    Changelog = 47,
+    NitroNotification = 48,
+    ChannelLinkedToLobby = 49,
+    GiftingPrompt = 50,
+    InGameMessageNux = 51,
+    GuildJoinRequestAcceptNotification = 52,
+    GuildJoinRequestRejectNotification = 53,
+    GuildJoinRequestWithdrawnNotification = 54,
+    HdStreamingUpgraded = 55,
+    ReportToModDeletedMessage = 58,
+    ReportToModTimeoutUser = 59,
+    ReportToModKickUser = 60,
+    ReportToModBanUser = 61,
+    ReportToModClosedReport = 62,
+    PremiumGroupInvite = 64,
+    VoiceSession = 65,
+    GuildBoostUpsell = 66,
+    FriendRequestAccepted = 67,
+    MediaMentionMessage = 68,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -906,7 +1003,7 @@ pub const MessageTypes = enum(u8) {
 };
 
 /// https://discord.com/developers/docs/resources/channel#message-object-message-activity-types
-pub const MessageActivityTypes = enum(u4) {
+pub const MessageActivityTypes = enum(u8) {
     Join = 1,
     Spectate = 2,
     Listen = 3,
@@ -918,10 +1015,8 @@ pub const MessageActivityTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/resources/sticker#sticker-object-sticker-types
-pub const StickerTypes = enum(u4) {
-    /// an official sticker in a pack
+pub const StickerTypes = enum(u8) {
     Standard = 1,
-    /// a sticker uploaded to a guild for the guild's members
     Guild = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
@@ -930,11 +1025,11 @@ pub const StickerTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/resources/sticker#sticker-object-sticker-format-types
-pub const StickerFormatTypes = enum(u4) {
+pub const StickerFormatTypes = enum(u8) {
     Png = 1,
-    APng,
-    Lottie,
-    Gif,
+    APng = 2,
+    Lottie = 3,
+    Gif = 4,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -942,12 +1037,13 @@ pub const StickerFormatTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/interactions/slash-commands#interaction-interactiontype
-pub const InteractionTypes = enum(u4) {
+pub const InteractionTypes = enum(u8) {
     Ping = 1,
     ApplicationCommand = 2,
     MessageComponent = 3,
     ApplicationCommandAutocomplete = 4,
     ModalSubmit = 5,
+    SocialLayerSkuPurchaseEligibility = 6,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -955,18 +1051,18 @@ pub const InteractionTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/interactions/slash-commands#applicationcommandoptiontype
-pub const ApplicationCommandOptionTypes = enum(u4) {
+pub const ApplicationCommandOptionTypes = enum(u8) {
     SubCommand = 1,
-    SubCommandGroup,
-    String,
-    Integer,
-    Boolean,
-    User,
-    Channel,
-    Role,
-    Mentionable,
-    Number,
-    Attachment,
+    SubCommandGroup = 2,
+    String = 3,
+    Integer = 4,
+    Boolean = 5,
+    User = 6,
+    Channel = 7,
+    Role = 8,
+    Mentionable = 9,
+    Number = 10,
+    Attachment = 11,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -974,141 +1070,93 @@ pub const ApplicationCommandOptionTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/resources/audit-log#audit-log-entry-object-audit-log-events
-pub const AuditLogEvents = enum(u4) {
-    /// Server settings were updated
+pub const AuditLogEvents = enum(u8) {
     GuildUpdate = 1,
-    /// Channel was created
     ChannelCreate = 10,
-    /// Channel settings were updated
-    ChannelUpdate,
-    /// Channel was deleted
-    ChannelDelete,
-    /// Permission overwrite was added to a channel
-    ChannelOverwriteCreate,
-    /// Permission overwrite was updated for a channel
-    ChannelOverwriteUpdate,
-    /// Permission overwrite was deleted from a channel
-    ChannelOverwriteDelete,
-    /// Member was removed from server
+    ChannelUpdate = 11,
+    ChannelDelete = 12,
+    ChannelOverwriteCreate = 13,
+    ChannelOverwriteUpdate = 14,
+    ChannelOverwriteDelete = 15,
     MemberKick = 20,
-    /// Members were pruned from server
-    MemberPrune,
-    /// Member was banned from server
-    MemberBanAdd,
-    /// Server ban was lifted for a member
-    MemberBanRemove,
-    /// Member was updated in server
-    MemberUpdate,
-    /// Member was added or removed from a role
-    MemberRoleUpdate,
-    /// Member was moved to a different voice channel
-    MemberMove,
-    /// Member was disconnected from a voice channel
-    MemberDisconnect,
-    /// Bot user was added to server
-    BotAdd,
-    /// Role was created
+    MemberPrune = 21,
+    MemberBanAdd = 22,
+    MemberBanRemove = 23,
+    MemberUpdate = 24,
+    MemberRoleUpdate = 25,
+    MemberMove = 26,
+    MemberDisconnect = 27,
+    BotAdd = 28,
     RoleCreate = 30,
-    /// Role was edited
-    RoleUpdate,
-    /// Role was deleted
-    RoleDelete,
-    /// Server invite was created
+    RoleUpdate = 31,
+    RoleDelete = 32,
     InviteCreate = 40,
-    /// Server invite was updated
-    InviteUpdate,
-    /// Server invite was deleted
-    InviteDelete,
-    /// Webhook was created
+    InviteUpdate = 41,
+    InviteDelete = 42,
     WebhookCreate = 50,
-    /// Webhook properties or channel were updated
-    WebhookUpdate,
-    /// Webhook was deleted
-    WebhookDelete,
-    /// Emoji was created
+    WebhookUpdate = 51,
+    WebhookDelete = 52,
     EmojiCreate = 60,
-    /// Emoji name was updated
-    EmojiUpdate,
-    /// Emoji was deleted
-    EmojiDelete,
-    /// Single message was deleted
+    EmojiUpdate = 61,
+    EmojiDelete = 62,
     MessageDelete = 72,
-    /// Multiple messages were deleted
-    MessageBulkDelete,
-    /// Messaged was pinned to a channel
-    MessagePin,
-    /// Message was unpinned from a channel
-    MessageUnpin,
-    /// App was added to server
+    MessageBulkDelete = 73,
+    MessagePin = 74,
+    MessageUnpin = 75,
     IntegrationCreate = 80,
-    /// App was updated (as an example, its scopes were updated)
-    IntegrationUpdate,
-    /// App was removed from server
-    IntegrationDelete,
-    /// Stage instance was created (stage channel becomes live)
-    StageInstanceCreate,
-    /// Stage instace details were updated
-    StageInstanceUpdate,
-    /// Stage instance was deleted (stage channel no longer live)
-    StageInstanceDelete,
-    /// Sticker was created
+    IntegrationUpdate = 81,
+    IntegrationDelete = 82,
+    StageInstanceCreate = 83,
+    StageInstanceUpdate = 84,
+    StageInstanceDelete = 85,
     StickerCreate = 90,
-    /// Sticker details were updated
-    StickerUpdate,
-    /// Sticker was deleted
-    StickerDelete,
-    /// Event was created
+    StickerUpdate = 91,
+    StickerDelete = 92,
     GuildScheduledEventCreate = 100,
-    /// Event was updated
-    GuildScheduledEventUpdate,
-    /// Event was cancelled
-    GuildScheduledEventDelete,
-    /// Thread was created in a channel
+    GuildScheduledEventUpdate = 101,
+    GuildScheduledEventDelete = 102,
     ThreadCreate = 110,
-    /// Thread was updated
-    ThreadUpdate,
-    /// Thread was deleted
-    ThreadDelete,
-    /// Permissions were updated for a command
+    ThreadUpdate = 111,
+    ThreadDelete = 112,
     ApplicationCommandPermissionUpdate = 121,
-    /// Auto moderation rule was created
+    SoundboardSoundCreate = 130,
+    SoundboardSoundUpdate = 131,
+    SoundboardSoundDelete = 132,
     AutoModerationRuleCreate = 140,
-    /// Auto moderation rule was updated
-    AutoModerationRuleUpdate,
-    /// Auto moderation rule was deleted
-    AutoModerationRuleDelete,
-    /// Message was blocked by AutoMod according to a rule.
-    AutoModerationBlockMessage,
-    /// Message was flagged by AutoMod
-    AudoModerationFlagMessage,
-    /// Member was timed out by AutoMod
-    AutoModerationMemberTimedOut,
-    /// Creator monetization request was created
+    AutoModerationRuleUpdate = 141,
+    AutoModerationRuleDelete = 142,
+    AutoModerationBlockMessage = 143,
+    AutoModerationFlagToChannel = 144,
+    AutoModerationUserCommunicationDisabled = 145,
+    AutoModerationQuarantineUser = 146,
     CreatorMonetizationRequestCreated = 150,
-    /// Creator monetization terms were accepted
-    CreatorMonetizationTermsAccepted,
-    /// Guild Onboarding Question was created
-    OnBoardingPromptCreate = 163,
-    /// Guild Onboarding Question was updated
-    OnBoardingPromptUpdate,
-    /// Guild Onboarding Question was deleted
-    OnBoardingPromptDelete,
-    /// Guild Onboarding was created
-    OnBoardingCreate,
-    /// Guild Onboarding was updated
-    OnBoardingUpdate,
-    /// Guild Server Guide was created
+    CreatorMonetizationTermsAccepted = 151,
+    OnboardingPromptCreate = 163,
+    OnboardingPromptUpdate = 164,
+    OnboardingPromptDelete = 165,
+    OnboardingCreate = 166,
+    OnboardingUpdate = 167,
+    GuildHomeFeatureItem = 171,
+    GuildHomeRemoveItem = 172,
     HomeSettingsCreate = 190,
-    /// Guild Server Guide was updated
-    HomeSettingsUpdate,
+    HomeSettingsUpdate = 191,
+    VoiceChannelStatusCreate = 192,
+    VoiceChannelStatusDelete = 193,
+    GuildScheduledEventExceptionCreate = 200,
+    GuildScheduledEventExceptionUpdate = 201,
+    GuildScheduledEventExceptionDelete = 202,
+    GuildMemberVerificationUpdate = 210,
+    GuildProfileUpdate = 211,
+    GuildMigratePinPermission = 212,
+    GuildMigrateBypassSlowmodePermission = 213,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const ScheduledEventPrivacyLevel = enum(u4) {
-    /// the scheduled event is only accessible to guild members
+pub const ScheduledEventPrivacyLevel = enum(u8) {
+    Public = 1,
     GuildOnly = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
@@ -1116,21 +1164,22 @@ pub const ScheduledEventPrivacyLevel = enum(u4) {
     }
 };
 
-pub const ScheduledEventEntityType = enum(u4) {
+pub const ScheduledEventEntityType = enum(u8) {
     StageInstance = 1,
-    Voice,
-    External,
+    Voice = 2,
+    External = 3,
+    PrimeTime = 4,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const ScheduledEventStatus = enum(u4) {
+pub const ScheduledEventStatus = enum(u8) {
     Scheduled = 1,
-    Active,
-    Completed,
-    Canceled,
+    Active = 2,
+    Completed = 3,
+    Canceled = 4,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -1138,34 +1187,33 @@ pub const ScheduledEventStatus = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/resources/invite#invite-object-target-user-types
-pub const TargetTypes = enum(u4) {
+pub const TargetTypes = enum(u8) {
     Stream = 1,
-    EmbeddedApplication,
+    EmbeddedApplication = 2,
+    RoleSubscriptions = 3,
+    CreatorPage = 4,
+    Lobby = 5,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const ApplicationCommandTypes = enum(u4) {
-    /// A text-based command that shows up when a user types `/`
+pub const ApplicationCommandTypes = enum(u8) {
     ChatInput = 1,
-    /// A UI-based command that shows up when you right click or tap on a user
-    User,
-    /// A UI-based command that shows up when you right click or tap on a message
-    Message,
-    /// A UI-based command that represents the primary way to invoke an app's Activity
-    PrimaryEntryPoint,
+    User = 2,
+    Message = 3,
+    PrimaryEntryPoint = 4,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const ApplicationCommandPermissionTypes = enum(u4) {
+pub const ApplicationCommandPermissionTypes = enum(u8) {
     Role = 1,
-    User,
-    Channel,
+    User = 2,
+    Channel = 3,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -1173,8 +1221,7 @@ pub const ApplicationCommandPermissionTypes = enum(u4) {
 };
 
 /// https://discord.com/developers/docs/topics/permissions#permissions-bitwise-permission-flags
-/// Permissions v2
-pub const BitwisePermissionFlags = packed struct {
+pub const BitwisePermissionFlags = packed struct(u64) {
     pub fn toRaw(self: BitwisePermissionFlags) u64 {
         return @bitCast(self);
     }
@@ -1188,251 +1235,159 @@ pub const BitwisePermissionFlags = packed struct {
             .ignore_unknown_fields = true,
             .max_value_len = 0x1000,
         });
-        if (value != .integer) @panic("Invalid value for bitfield");
-
-        return fromRaw(@intCast(value.integer));
+        if (value == .integer) return fromRaw(@intCast(value.integer));
+        if (value == .string) {
+            const parsed = std.fmt.parseInt(u64, value.string, 10) catch return fromRaw(0);
+            return fromRaw(parsed);
+        }
+        return fromRaw(0);
     }
 
     pub fn jsonParseFromValue(_: std.mem.Allocator, src: std.json.Value, _: std.json.ParseOptions) @This() {
-        if (src != .integer) @panic("Invalid value for bitfield");
-        return fromRaw(@intCast(src.integer));
+        if (src == .integer) return fromRaw(@intCast(src.integer));
+        if (src == .string) {
+            const parsed = std.fmt.parseInt(u64, src.string, 10) catch return fromRaw(0);
+            return fromRaw(parsed);
+        }
+        return fromRaw(0);
     }
 
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("\"{d}\"", .{self.toRaw()});
+    }
 
-    /// Allows creation of instant invites
-    CREATE_INSTANT_INVITE: bool = false,
-    /// Allows kicking members
-    KICK_MEMBERS: bool = false,
-    /// Allows banning members
-    BAN_MEMBERS: bool = false,
-    /// Allows all permissions and bypasses channel permission overwrites
-    ADMINISTRATOR: bool = false,
-    /// Allows management and editing of channels
-    MANAGE_CHANNELS: bool = false,
-    /// Allows management and editing of the guild
-    MANAGE_GUILD: bool = false,
-    /// Allows for the addition of reactions to messages
-    ADD_REACTIONS: bool = false,
-    /// Allows for viewing of audit logs
-    VIEW_AUDIT_LOG: bool = false,
-    /// Allows for using priority speaker in a voice channel
-    PRIORITY_SPEAKER: bool = false,
-    /// Allows the user to go live
-    STREAM: bool = false,
-    /// Allows guild members to view a channel, which includes reading messages in text channels and joining voice channels
-    VIEW_CHANNEL: bool = false,
-    /// Allows for sending messages in a channel. (does not allow sending messages in threads)
-    SEND_MESSAGES: bool = false,
-    /// Allows for sending of /tts messages
-    SEND_TTS_MESSAGES: bool = false,
-    /// Allows for deletion of other users messages
-    MANAGE_MESSAGES: bool = false,
-    /// Links sent by users with this permission will be auto-embedded
-    EMBED_LINKS: bool = false,
-    /// Allows for uploading images and files
-    ATTACH_FILES: bool = false,
-    /// Allows for reading of message history
-    READ_MESSAGE_HISTORY: bool = false,
-    /// Allows for using the \@everyone tag to notify all users in a channel, and the \@here tag to notify all online users in a channel
-    MENTION_EVERYONE: bool = false,
-    /// Allows the usage of custom emojis from other servers
-    USE_EXTERNAL_EMOJIS: bool = false,
-    /// Allows for viewing guild insights
-    VIEW_GUILD_INSIGHTS: bool = false,
-    /// Allows for joining of a voice channel
-    CONNECT: bool = false,
-    /// Allows for speaking in a voice channel
-    SPEAK: bool = false,
-    /// Allows for muting members in a voice channel
-    MUTE_MEMBERS: bool = false,
-    /// Allows for deafening of members in a voice channel
-    DEAFEN_MEMBERS: bool = false,
-    /// Allows for moving of members between voice channels
-    MOVE_MEMBERS: bool = false,
-    /// Allows for using voice-activity-detection in a voice channel
-    USE_VAD: bool = false,
-    /// Allows for modification of own nickname
-    CHANGE_NICKNAME: bool = false,
-    /// Allows for modification of other users nicknames
-    MANAGE_NICKNAMES: bool = false,
-    /// Allows management and editing of roles
-    MANAGE_ROLES: bool = false,
-    /// Allows management and editing of webhooks
-    MANAGE_WEBHOOKS: bool = false,
-    /// Allows for editing and deleting emojis, stickers, and soundboard sounds created by all users
-    MANAGE_GUILD_EXPRESSIONS: bool = false,
-    /// Allows members to use application commands in text channels
-    USE_SLASH_COMMANDS: bool = false,
-    /// Allows for requesting to speak in stage channels.
-    REQUEST_TO_SPEAK: bool = false,
-    /// Allows for editing and deleting scheduled events created by all users
-    MANAGE_EVENTS: bool = false,
-    /// Allows for deleting and archiving threads, and viewing all private threads
-    MANAGE_THREADS: bool = false,
-    /// Allows for creating public and announcement threads
-    CREATE_PUBLIC_THREADS: bool = false,
-    /// Allows for creating private threads
-    CREATE_PRIVATE_THREADS: bool = false,
-    /// Allows the usage of custom stickers from other servers
-    USE_EXTERNAL_STICKERS: bool = false,
-    /// Allows for sending messages in threads
-    SEND_MESSAGES_IN_THREADS: bool = false,
-    /// Allows for launching activities (applications with the `EMBEDDED` flag) in a voice channel.
-    USE_EMBEDDED_ACTIVITIES: bool = false,
-    /// Allows for timing out users to prevent them from sending or reacting to messages in chat and threads, and from speaking in voice and stage channels
-    MODERATE_MEMBERS: bool = false,
-    /// Allows for viewing role subscription insights.
-    VIEW_CREATOR_MONETIZATION_ANALYTICS: bool = false,
-    /// Allows for using soundboard in a voice channel.
-    USE_SOUNDBOARD: bool = false,
-    /// Allows for creating emojis, stickers, and soundboard sounds, and editing and deleting those created by the current user
-    CREATE_GUILD_EXPRESSIONS: bool = false,
-    /// Allows for creating scheduled events, and editing and deleting those created by the current user
-    CREATE_EVENTS: bool = false,
-    /// Allows the usage of custom soundboards sounds from other servers
-    USE_EXTERNAL_SOUNDS: bool = false,
-    /// Allows sending voice messages
-    SEND_VOICE_MESSAGES: bool = false,
-    /// Allows sending polls
-    SEND_POLLS: bool = false,
-    /// Allows user-installed apps to send public responses. When disabled, users will still be allowed to use their apps but the responses will be ephemeral. This only applies to apps not also installed to the server.
-    USE_EXTERNAL_APPS: bool = false,
-    _pad: u15 = 0,
+    CREATE_INSTANT_INVITE: bool = false, // 1 << 0
+    KICK_MEMBERS: bool = false, // 1 << 1
+    BAN_MEMBERS: bool = false, // 1 << 2
+    ADMINISTRATOR: bool = false, // 1 << 3
+    MANAGE_CHANNELS: bool = false, // 1 << 4
+    MANAGE_GUILD: bool = false, // 1 << 5
+    ADD_REACTIONS: bool = false, // 1 << 6
+    VIEW_AUDIT_LOG: bool = false, // 1 << 7
+    PRIORITY_SPEAKER: bool = false, // 1 << 8
+    STREAM: bool = false, // 1 << 9
+    VIEW_CHANNEL: bool = false, // 1 << 10
+    SEND_MESSAGES: bool = false, // 1 << 11
+    SEND_TTS_MESSAGES: bool = false, // 1 << 12
+    MANAGE_MESSAGES: bool = false, // 1 << 13
+    EMBED_LINKS: bool = false, // 1 << 14
+    ATTACH_FILES: bool = false, // 1 << 15
+    READ_MESSAGE_HISTORY: bool = false, // 1 << 16
+    MENTION_EVERYONE: bool = false, // 1 << 17
+    USE_EXTERNAL_EMOJIS: bool = false, // 1 << 18
+    VIEW_GUILD_INSIGHTS: bool = false, // 1 << 19
+    CONNECT: bool = false, // 1 << 20
+    SPEAK: bool = false, // 1 << 21
+    MUTE_MEMBERS: bool = false, // 1 << 22
+    DEAFEN_MEMBERS: bool = false, // 1 << 23
+    MOVE_MEMBERS: bool = false, // 1 << 24
+    USE_VAD: bool = false, // 1 << 25
+    CHANGE_NICKNAME: bool = false, // 1 << 26
+    MANAGE_NICKNAMES: bool = false, // 1 << 27
+    MANAGE_ROLES: bool = false, // 1 << 28
+    MANAGE_WEBHOOKS: bool = false, // 1 << 29
+    MANAGE_GUILD_EXPRESSIONS: bool = false, // 1 << 30
+    USE_SLASH_COMMANDS: bool = false, // 1 << 31
+    REQUEST_TO_SPEAK: bool = false, // 1 << 32
+    MANAGE_EVENTS: bool = false, // 1 << 33
+    MANAGE_THREADS: bool = false, // 1 << 34
+    CREATE_PUBLIC_THREADS: bool = false, // 1 << 35
+    CREATE_PRIVATE_THREADS: bool = false, // 1 << 36
+    USE_EXTERNAL_STICKERS: bool = false, // 1 << 37
+    SEND_MESSAGES_IN_THREADS: bool = false, // 1 << 38
+    USE_EMBEDDED_ACTIVITIES: bool = false, // 1 << 39
+    MODERATE_MEMBERS: bool = false, // 1 << 40
+    VIEW_CREATOR_MONETIZATION_ANALYTICS: bool = false, // 1 << 41
+    USE_SOUNDBOARD: bool = false, // 1 << 42
+    CREATE_GUILD_EXPRESSIONS: bool = false, // 1 << 43
+    CREATE_EVENTS: bool = false, // 1 << 44
+    USE_EXTERNAL_SOUNDS: bool = false, // 1 << 45
+    SEND_VOICE_MESSAGES: bool = false, // 1 << 46
+    _pad0: u1 = 0, // 47
+    SET_VOICE_CHANNEL_STATUS: bool = false, // 1 << 48
+    SEND_POLLS: bool = false, // 1 << 49
+    USE_EXTERNAL_APPS: bool = false, // 1 << 50
+    PIN_MESSAGES: bool = false, // 1 << 51
+    BYPASS_SLOWMODE: bool = false, // 1 << 52
+    MANAGE_OFFICIAL_MESSAGES: bool = false, // 1 << 53
+    _pad1: u10 = 0,
 };
 
-pub const PermissionStrings = union(enum) {
-    /// Allows creation of instant invites
+pub const PermissionStrings = enum {
     CREATE_INSTANT_INVITE,
-    /// Allows kicking members
     KICK_MEMBERS,
-    /// Allows banning members
     BAN_MEMBERS,
-    /// Allows all permissions and bypasses channel permission overwrites
     ADMINISTRATOR,
-    /// Allows management and editing of channels
     MANAGE_CHANNELS,
-    /// Allows management and editing of the guild
     MANAGE_GUILD,
-    /// Allows for the addition of reactions to messages
     ADD_REACTIONS,
-    /// Allows for viewing of audit logs
     VIEW_AUDIT_LOG,
-    /// Allows for using priority speaker in a voice channel
     PRIORITY_SPEAKER,
-    /// Allows the user to go live
     STREAM,
-    /// Allows guild members to view a channel, which includes reading messages in text channels and joining voice channels
     VIEW_CHANNEL,
-    /// Allows for sending messages in a channel. (does not allow sending messages in threads)
     SEND_MESSAGES,
-    /// Allows for sending of /tts messages
     SEND_TTS_MESSAGES,
-    /// Allows for deletion of other users messages
     MANAGE_MESSAGES,
-    /// Links sent by users with this permission will be auto-embedded
     EMBED_LINKS,
-    /// Allows for uploading images and files
     ATTACH_FILES,
-    /// Allows for reading of message history
     READ_MESSAGE_HISTORY,
-    /// Allows for using the \@everyone tag to notify all users in a channel, and the \@here tag to notify all online users in a channel
     MENTION_EVERYONE,
-    /// Allows the usage of custom emojis from other servers
     USE_EXTERNAL_EMOJIS,
-    /// Allows for viewing guild insights
     VIEW_GUILD_INSIGHTS,
-    /// Allows for joining of a voice channel
     CONNECT,
-    /// Allows for speaking in a voice channel
     SPEAK,
-    /// Allows for muting members in a voice channel
     MUTE_MEMBERS,
-    /// Allows for deafening of members in a voice channel
     DEAFEN_MEMBERS,
-    /// Allows for moving of members between voice channels
     MOVE_MEMBERS,
-    /// Allows for using voice-activity-detection in a voice channel
     USE_VAD,
-    /// Allows for modification of own nickname
     CHANGE_NICKNAME,
-    /// Allows for modification of other users nicknames
     MANAGE_NICKNAMES,
-    /// Allows management and editing of roles
     MANAGE_ROLES,
-    /// Allows management and editing of webhooks
     MANAGE_WEBHOOKS,
-    /// Allows for editing and deleting emojis, stickers, and soundboard sounds created by all users
     MANAGE_GUILD_EXPRESSIONS,
-    /// Allows members to use application commands in text channels
     USE_SLASH_COMMANDS,
-    /// Allows for requesting to speak in stage channels.
     REQUEST_TO_SPEAK,
-    /// Allows for editing and deleting scheduled events created by all users
     MANAGE_EVENTS,
-    /// Allows for deleting and archiving threads, and viewing all private threads
     MANAGE_THREADS,
-    /// Allows for creating public and announcement threads
     CREATE_PUBLIC_THREADS,
-    /// Allows for creating private threads
     CREATE_PRIVATE_THREADS,
-    /// Allows the usage of custom stickers from other servers
     USE_EXTERNAL_STICKERS,
-    /// Allows for sending messages in threads
     SEND_MESSAGES_IN_THREADS,
-    /// Allows for launching activities (applications with the `EMBEDDED` flag) in a voice channel.
     USE_EMBEDDED_ACTIVITIES,
-    /// Allows for timing out users to prevent them from sending or reacting to messages in chat and threads, and from speaking in voice and stage channels
     MODERATE_MEMBERS,
-    /// Allows for viewing role subscription insights.
     VIEW_CREATOR_MONETIZATION_ANALYTICS,
-    /// Allows for using soundboard in a voice channel.
     USE_SOUNDBOARD,
-    /// Allows for creating emojis, stickers, and soundboard sounds, and editing and deleting those created by the current user
     CREATE_GUILD_EXPRESSIONS,
-    /// Allows for creating scheduled events, and editing and deleting those created by the current user
     CREATE_EVENTS,
-    /// Allows the usage of custom soundboards sounds from other servers
     USE_EXTERNAL_SOUNDS,
-    /// Allows sending voice messages
     SEND_VOICE_MESSAGES,
-    /// Allows sending polls
+    SET_VOICE_CHANNEL_STATUS,
     SEND_POLLS,
-    /// Allows user-installed apps to send public responses. When disabled, users will still be allowed to use their apps but the responses will be ephemeral. This only applies to apps not also installed to the server.
     USE_EXTERNAL_APPS,
+    PIN_MESSAGES,
+    BYPASS_SLOWMODE,
+    MANAGE_OFFICIAL_MESSAGES,
 };
 
 /// https://discord.com/developers/docs/topics/opcodes-and-status-codes#opcodes-and-status-codes
 pub const GatewayCloseEventCodes = enum(u16) {
-    /// A normal closure of the gateway. You may attempt to reconnect.
     NormalClosure = 1000,
-    /// We're not sure what went wrong. Try reconnecting?
     UnknownError = 4000,
-    /// You sent an invalid [Gateway opcode](https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes) or an invalid payload for an opcode. Don't do that!
-    UnknownOpcode,
-    /// You sent an invalid [payload](https://discord.com/developers/docs/topics/gateway#sending-payloads) to us. Don't do that!
-    DecodeError,
-    /// You sent us a payload prior to [identifying](https://discord.com/developers/docs/topics/gateway-events#identify), or this session has been invalidated.
-    NotAuthenticated,
-    /// The account token sent with your [identify payload](https://discord.com/developers/docs/topics/gateway-events#identify) is incorrect.
-    AuthenticationFailed,
-    /// You sent more than one identify payload. Don't do that!
-    AlreadyAuthenticated,
-    /// The sequence sent when [resuming](https://discord.com/developers/docs/topics/gateway-events#resume) the session was invalid. Reconnect and start a new session.
+    UnknownOpcode = 4001,
+    DecodeError = 4002,
+    NotAuthenticated = 4003,
+    AuthenticationFailed = 4004,
+    AlreadyAuthenticated = 4005,
     InvalidSeq = 4007,
-    /// Woah nelly! You're sending payloads to us too quickly. Slow it down! You will be disconnected on receiving this.
-    RateLimited,
-    /// Your session timed out. Reconnect and start a new one.
-    SessionTimedOut,
-    /// You sent us an invalid [shard when identifying](https://discord.com/developers/docs/topics/gateway#sharding).
-    InvalidShard,
-    /// The session would have handled too many guilds - you are required to [shard](https://discord.com/developers/docs/topics/gateway#sharding) your connection in order to connect.
-    ShardingRequired,
-    /// You sent an invalid version for the gateway.
-    InvalidApiVersion,
-    /// You sent an invalid intent for a [Gateway Intent](https://discord.com/developers/docs/topics/gateway#gateway-intents). You may have incorrectly calculated the bitwise value.
-    InvalidIntents,
-    /// You sent a disallowed intent for a [Gateway Intent](https://discord.com/developers/docs/topics/gateway#gateway-intents). You may have tried to specify an intent that you [have not enabled or are not approved for](https://discord.com/developers/docs/topics/gateway#privileged-intents).
-    DisallowedIntents,
+    RateLimited = 4008,
+    SessionTimedOut = 4009,
+    InvalidShard = 4010,
+    ShardingRequired = 4011,
+    InvalidApiVersion = 4012,
+    InvalidIntents = 4013,
+    DisallowedIntents = 4014,
+    TooManySessions = 4015,
+    ConnectionRequestCanceled = 4016,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
@@ -1440,41 +1395,56 @@ pub const GatewayCloseEventCodes = enum(u16) {
 };
 
 /// https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
-pub const GatewayOpcodes = enum(u4) {
-    /// An event was dispatched.
-    Dispatch,
-    /// Fired periodically by the client to keep the connection alive.
-    Heartbeat,
-    /// Starts a new session during the initial handshake.
-    Identify,
-    /// Update the client's presence.
-    PresenceUpdate,
-    /// Used to join/leave or move between voice channels.
-    VoiceStateUpdate,
-    /// Resume a previous session that was disconnected.
+pub const GatewayOpcodes = enum(u8) {
+    Dispatch = 0,
+    Heartbeat = 1,
+    Identify = 2,
+    PresenceUpdate = 3,
+    VoiceStateUpdate = 4,
+    VoiceServerPing = 5,
     Resume = 6,
-    /// You should attempt to reconnect and resume immediately.
-    Reconnect,
-    /// Request information about offline guild members in a large guild.
-    RequestGuildMembers,
-    /// The session has been invalidated. You should reconnect and identify/resume accordingly.
-    InvalidSession,
-    /// Sent immediately after connecting, contains the `heartbeat_interval` to use.
-    Hello,
-    /// Sent in response to receiving a heartbeat to acknowledge that it has been received.
-    HeartbeatACK,
+    Reconnect = 7,
+    RequestGuildMembers = 8,
+    InvalidSession = 9,
+    Hello = 10,
+    HeartbeatACK = 11,
+    CallConnect = 13,
+    GuildSubscriptions = 14,
+    LobbyVoiceStates = 17,
+    StreamCreate = 18,
+    StreamDelete = 19,
+    StreamWatch = 20,
+    StreamPing = 21,
+    StreamSetPaused = 22,
+    RequestForumUnreads = 28,
+    RemoteCommand = 29,
+    RequestDeletedEntityIds = 30,
+    RequestSoundboardSounds = 31,
+    SpeedTestCreate = 32,
+    SpeedTestDelete = 33,
+    RequestLastMessages = 34,
+    SearchRecentMembers = 35,
+    RequestChannelStatuses = 36,
+    GuildSubscriptionsBulk = 37,
+    GuildChannelsResync = 38,
+    RequestChannelMemberCount = 39,
+    QoSHeartbeat = 40,
+    UpdateTimeSpentSessionId = 41,
+    LobbyVoiceServerPing = 42,
+    RequestChannelInfo = 43,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const GatewayDispatchEventNames = union(enum) {
+pub const GatewayDispatchEventNames = enum {
     APPLICATION_COMMAND_PERMISSIONS_UPDATE,
     AUTO_MODERATION_RULE_CREATE,
     AUTO_MODERATION_RULE_UPDATE,
     AUTO_MODERATION_RULE_DELETE,
     AUTO_MODERATION_ACTION_EXECUTION,
+    AUTO_MODERATION_MENTION_RAID_DETECTION,
     CHANNEL_CREATE,
     CHANNEL_UPDATE,
     CHANNEL_DELETE,
@@ -1506,6 +1476,15 @@ pub const GatewayDispatchEventNames = union(enum) {
     GUILD_SCHEDULED_EVENT_DELETE,
     GUILD_SCHEDULED_EVENT_USER_ADD,
     GUILD_SCHEDULED_EVENT_USER_REMOVE,
+    GUILD_SCHEDULED_EVENT_EXCEPTION_CREATE,
+    GUILD_SCHEDULED_EVENT_EXCEPTION_UPDATE,
+    GUILD_SCHEDULED_EVENT_EXCEPTION_DELETE,
+    GUILD_SCHEDULED_EVENT_EXCEPTIONS_DELETE,
+    GUILD_SOUNDBOARD_SOUND_CREATE,
+    GUILD_SOUNDBOARD_SOUND_UPDATE,
+    GUILD_SOUNDBOARD_SOUND_DELETE,
+    GUILD_SOUNDBOARD_SOUNDS_UPDATE,
+    SOUNDBOARD_SOUNDS,
     INTEGRATION_CREATE,
     INTEGRATION_UPDATE,
     INTEGRATION_DELETE,
@@ -1529,78 +1508,57 @@ pub const GatewayDispatchEventNames = union(enum) {
     VOICE_CHANNEL_EFFECT_SEND,
     VOICE_STATE_UPDATE,
     VOICE_SERVER_UPDATE,
+    VOICE_CHANNEL_START_TIME_UPDATE,
+    VOICE_CHANNEL_STATUS_UPDATE,
     WEBHOOKS_UPDATE,
     ENTITLEMENT_CREATE,
     ENTITLEMENT_UPDATE,
     ENTITLEMENT_DELETE,
     MESSAGE_POLL_VOTE_ADD,
     MESSAGE_POLL_VOTE_REMOVE,
-
     READY,
     RESUMED,
 };
 
-
 /// https://discord.com/developers/docs/interactions/slash-commands#interaction-response-interactionresponsetype
-pub const InteractionResponseTypes = enum(u4) {
-    /// ACK a `Ping`
+pub const InteractionResponseTypes = enum(u8) {
     Pong = 1,
-    /// Respond to an interaction with a message
     ChannelMessageWithSource = 4,
-    /// ACK an interaction and edit a response later, the user sees a loading state
     DeferredChannelMessageWithSource = 5,
-    /// For components, ACK an interaction and edit the original message later; the user does not see a loading state
     DeferredUpdateMessage = 6,
-    /// For components, edit the message the component was attached to
     UpdateMessage = 7,
-    /// For Application Command Options, send an autocomplete result
     ApplicationCommandAutocompleteResult = 8,
-    /// For Command or Component interactions, send a Modal response
     Modal = 9,
-    ///
-    /// Respond to an interaction with an upgrade button, only available for apps with monetization enabled
-    ///
-    /// @deprecated You should migrate to the premium button components
     PremiumRequired = 10,
-    ///
-    /// Launch the Activity associated with the app.
-    ///
-    /// @remarks
-    /// Only available for apps with Activities enabled
+    IFrameModal = 11,
     LaunchActivity = 12,
+    SocialLayerSkuPurchaseEligibility = 13,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const SortOrderTypes = enum {
-    /// Sort forum posts by activity
-    LatestActivity,
-    /// Sort forum posts by creation time (from most recent to oldest)
-    CreationDate,
+pub const SortOrderTypes = enum(u8) {
+    LatestActivity = 0,
+    CreationDate = 1,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-pub const ForumLayout = enum {
-    /// No default has been set for forum channel.
-    NotSet,
-    /// Display posts as a list.
-    ListView,
-    /// Display posts as a collection of tiles.
-    GalleryView,
+pub const ForumLayout = enum(u8) {
+    NotSet = 0,
+    ListView = 1,
+    GalleryView = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
         try writer.print("{d}", .{@intFromEnum(self)});
     }
 };
 
-/// https://discord.com/developers/docs/reference#image-formatting
-/// json is only for stickers
-pub const ImageFormat = union(enum) {
+pub const ImageFormat = enum {
     jpg,
     jpeg,
     png,
@@ -1609,10 +1567,9 @@ pub const ImageFormat = union(enum) {
     json,
 };
 
-/// https://discord.com/developers/docs/reference#image-formatting
 pub const ImageSize = isize;
 
-pub const Locales = union(enum) {
+pub const Locales = enum {
     id,
     da,
     de,
@@ -1645,147 +1602,59 @@ pub const Locales = union(enum) {
     ja,
     @"zh-TW",
     ko,
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("\"{s}\"", .{@tagName(self)});
+    }
 };
 
 /// https://discord.com/developers/docs/topics/oauth2#shared-resources-oauth2-scopes
-pub const OAuth2Scope = union(enum) {
-    ///
-    /// Allows your app to fetch data from a user's "Now Playing/Recently Played" list
-    ///
-    /// @remarks
-    /// This scope is not currently available for apps
-    ///
+pub const OAuth2Scope = enum {
     @"activities.read",
-    ///
-    /// Allows your app to update a user's activity
-    ///
-    /// @remarks
-    /// This scope not currently available for apps.
-    ///
     @"activities.write",
-    /// Allows your app to read build data for a user's applications
     @"applications.builds.read",
-    ///
-    /// Allows your app to upload/update builds for a user's applications
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"applications.builds.upload",
-    /// Allows your app to add commands to a guild - included by default with the `bot` scope
     @"applications.commands",
-    ///
-    /// Allows your app to update its Application Commands via this bearer token
-    ///
-    /// @remarks
-    /// This scope can only be used when using a [Client Credential Grant](https://discord.com/developers/docs/topics/oauth2#client-credentials-grant)
-    ///
     @"applications.commands.update",
-    /// Allows your app to update permissions for its commands in a guild a user has permissions to
     @"applications.commands.permissions.update",
-    /// Allows your app to read entitlements for a user's applications
     @"applications.entitlements",
-    /// Allows your app to read and update store data (SKUs, store listings, achievements, etc.) for a user's applications
     @"applications.store.update",
-    /// For oauth2 bots, this puts the bot in the user's selected guild by default
     bot,
-    /// Allows requests to [/users/@me/connections](https://discord.com/developers/docs/resources/user#get-user-connections)
     connections,
-    ///
-    /// Allows your app to see information about the user's DMs and group DMs
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"dm_channels.read",
-    /// Adds the `email` filed to [/users/@me](https://discord.com/developers/docs/resources/user#get-current-user)
+    @"dm_channels.messages.read",
+    @"dm_channels.messages.write",
     email,
-    /// Allows your app to join users to a group dm
     @"gdm.join",
-    /// Allows requests to [/users/@me/guilds](https://discord.com/developers/docs/resources/user#get-current-user-guilds)
     guilds,
-    /// Allows requests to [/guilds/{guild.id};/members/{user.id};](https://discord.com/developers/docs/resources/guild#add-guild-member)
     @"guilds.join",
-    /// Allows requests to [/users/@me/guilds/{guild.id};/member](https://discord.com/developers/docs/resources/user#get-current-user-guild-member)
     @"guilds.members.read",
-    ///
-    /// Allows requests to [/users/@me](https://discord.com/developers/docs/resources/user#get-current-user)
-    ///
-    /// @remarks
-    /// The return object from [/users/@me](https://discord.com/developers/docs/resources/user#get-current-user)
-    /// does NOT contain the `email` field unless the scope `email` is also used
-    ///
     identify,
-    ///
-    /// For local rpc server api access, this allows you to read messages from all client channels
-    /// (otherwise restricted to channels/guilds your app creates)
-    ///
     @"messages.read",
-    ///
-    /// Allows your app to know a user's friends and implicit relationships
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
+    openid,
     @"relationships.read",
-    /// Allows your app to update a user's connection and metadata for the app
+    @"relationships.write",
     @"role_connections.write",
-    ///
-    ///For local rpc server access, this allows you to control a user's local  client
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     rpc,
-    ///
-    /// For local rpc server access, this allows you to update a user's activity
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"rpc.activities.write",
-    ///
-    /// For local rpc server api access, this allows you to receive notifications pushed out to the user
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"rpc.notifications.read",
-    ///
-    /// For local rpc server access, this allows you to read a user's voice settings and listen for voice events
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"rpc.voice.read",
-    ///
-    /// For local rpc server access, this allows you to update a user's voice settings
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     @"rpc.voice.write",
-    ///
-    /// Allows your app to connect to voice on user's behalf and see all the voice members
-    ///
-    /// @remarks
-    ///This scope requires  approval to be used
-    ///
     voice,
-    /// Generate a webhook that is returned in the oauth token response for authorization code grants
     @"webhook.incoming",
+
+    pub fn jsonStringify(self: @This(), writer: anytype) !void {
+        try writer.print("\"{s}\"", .{@tagName(self)});
+    }
 };
 
 /// https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-object-interaction-context-types
-pub const InteractionContextType = enum {
-    /// Interaction can be used within servers
-    Guild,
-    /// Interaction can be used within DMs with the app's bot user
-    BotDm,
-    /// Interaction can be used within Group DMs and DMs other than the app's bot user
-    PrivateChannel,
+pub const InteractionContextType = enum(u8) {
+    Guild = 0,
+    BotDm = 1,
+    PrivateChannel = 2,
 
     pub fn jsonStringify(self: @This(), writer: anytype) !void {
-        try writer.print("{d}", .{@enumFromInt(self)});
+        try writer.print("{d}", .{@intFromEnum(self)});
     }
 };

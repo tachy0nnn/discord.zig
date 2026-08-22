@@ -1,293 +1,293 @@
-    //! ISC License
-    //!
-    //! Copyright (c) 2024-2025 Yuzu
-    //!
-    //! Permission to use, copy, modify, and/or distribute this software for any
-    //! purpose with or without fee is hereby granted, provided that the above
-    //! copyright notice and this permission notice appear in all copies.
-    //!
-    //! THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-    //! REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-    //! AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-    //! INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-    //! LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-    //! OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-    //! PERFORMANCE OF THIS SOFTWARE.
+//! ISC License
+//!
+//! Copyright (c) 2024-2025 Yuzu
+//!
+//! Permission to use, copy, modify, and/or distribute this software for any
+//! purpose with or without fee is hereby granted, provided that the above
+//! copyright notice and this permission notice appear in all copies.
+//!
+//! THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+//! REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+//! AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+//! INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+//! LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+//! OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+//! PERFORMANCE OF THIS SOFTWARE.
 
-    const Snowflake = @import("snowflake.zig").Snowflake;
-    const User = @import("user.zig").User;
-    const Member = @import("member.zig").Member;
-    const Attachment = @import("attachment.zig").Attachment;
-    const Application = @import("application.zig").Application;
-    const Embed = @import("embed.zig").Embed;
-    const AllowedMentionTypes = @import("shared.zig").AllowedMentionsTypes;
-    const PremiumTypes = @import("shared.zig").PremiumTypes;
-    const InteractionTypes = @import("shared.zig").InteractionTypes;
-    const MessageTypes = @import("shared.zig").MessageTypes;
-    const Sticker = @import("sticker.zig").Sticker;
-    const StickerItem = @import("sticker.zig").StickerItem;
-    const StickerPath = @import("sticker.zig").StickerPack;
-    const MessageFlags = @import("shared.zig").MessageFlags;
-    const Emoji = @import("emoji.zig").Emoji;
-    const Poll = @import("poll.zig").Poll;
-    const AvatarDecorationData = @import("user.zig").AvatarDecorationData;
-    const MessageActivityTypes = @import("shared.zig").MessageActivityTypes;
-    const Partial = @import("partial.zig").Partial;
-    const MessageComponent = @import("component.zig").MessageComponent;
+const Snowflake = @import("snowflake.zig").Snowflake;
+const User = @import("user.zig").User;
+const Member = @import("member.zig").Member;
+const Attachment = @import("attachment.zig").Attachment;
+const Application = @import("application.zig").Application;
+const Embed = @import("embed.zig").Embed;
+const AllowedMentionTypes = @import("shared.zig").AllowedMentionsTypes;
+const PremiumTypes = @import("shared.zig").PremiumTypes;
+const InteractionTypes = @import("shared.zig").InteractionTypes;
+const MessageTypes = @import("shared.zig").MessageTypes;
+const Sticker = @import("sticker.zig").Sticker;
+const StickerItem = @import("sticker.zig").StickerItem;
+const StickerPath = @import("sticker.zig").StickerPack;
+const MessageFlags = @import("shared.zig").MessageFlags;
+const Emoji = @import("emoji.zig").Emoji;
+const Poll = @import("poll.zig").Poll;
+const AvatarDecorationData = @import("user.zig").AvatarDecorationData;
+const MessageActivityTypes = @import("shared.zig").MessageActivityTypes;
+const Partial = @import("partial.zig").Partial;
+const MessageComponent = @import("component.zig").MessageComponent;
 
+/// https://discord.com/developers/docs/resources/channel#message-object
+pub const Message = struct {
+    /// id of the message
+    id: Snowflake,
+    /// id of the channel the message was sent in
+    channel_id: Snowflake,
+    /// id of the guild the message was sent in
+    guild_id: ?Snowflake = null,
+    /// The author of this message
+    author: User,
+    /// Member properties for this message's author
+    member: ?Member = null,
+    /// Contents of the message
+    content: ?[]const u8 = null,
+    /// When this message was sent
+    timestamp: []const u8,
+    /// When this message was edited (or null if never)
+    edited_timestamp: ?[]const u8 = null,
+    /// Whether this was a TTS message
+    tts: bool,
+    /// Whether this message mentions everyone
+    mention_everyone: bool,
+    /// Users specifically mentioned in the message
+    mentions: []User,
+    /// Roles specifically mentioned in this message
+    mention_roles: ?[][]const u8 = null,
+    /// Channels specifically mentioned in this message
+    mention_channels: ?[]ChannelMention = null,
+    /// Any attached files
+    attachments: []Attachment,
+    /// Any embedded content
+    embeds: []Embed,
+    /// Reactions to the message
+    reactions: ?[]Reaction = null,
+    /// Whether this message is pinned
+    pinned: bool,
+    /// If the message is generated by a webhook, this is the webhook's id
+    webhook_id: ?Snowflake = null,
+    /// Type of message
+    type: MessageTypes,
+    /// Sent with Rich Presence-related chat embeds
+    activity: ?MessageActivity = null,
+    /// Sent with Rich Presence-related chat embeds
+    application: ?Partial(Application) = null,
+    /// Application id if the message is an Interaction or application-owned webhook
+    application_id: ?Snowflake = null,
+    /// Message flags combined as a bitfield
+    flags: ?MessageFlags = null,
+    /// The stickers sent with the message
+    stickers: ?[]Sticker = null,
+    /// The referenced message (for replies)
+    referenced_message: ?*Message = null,
+    /// Sent if the message is a response to an Interaction
+    interaction: ?MessageInteraction = null,
+    /// The components related to this message
+    components: ?[]MessageComponent = null,
+    /// Sent if the message contains stickers
+    sticker_items: ?[]StickerItem = null,
+    /// Approximate position of the message in a thread
+    position: ?isize = null,
+    /// The poll object
+    poll: ?Poll = null,
+    /// The call associated with the message
+    call: ?MessageCall = null,
+};
+
+/// https://discord.com/developers/docs/resources/channel#message-call-object
+pub const MessageCall = struct {
+    /// Array of user object ids that participated in the call
+    participants: [][]const u8,
+    /// Time when call ended
+    ended_timestamp: []const u8,
+};
+
+/// https://discord.com/developers/docs/resources/channel#channel-mention-object
+pub const ChannelMention = struct {
+    /// id of the channel
+    id: Snowflake,
+    /// id of the guild containing the channel
+    guild_id: Snowflake,
+    /// The type of channel
+    type: isize,
+    /// The name of the channel
+    name: []const u8,
+};
+
+/// https://discord.com/developers/docs/resources/channel#reaction-object
+pub const Reaction = struct {
+    /// Total isize of times this emoji has been used to react (including super reacts)
+    count: isize,
+    ///
+    count_details: ReactionCountDetails,
+    /// Whether the current user reacted using this emoji
+    me: bool,
+    ///
+    me_burst: bool,
+    /// Emoji information
+    emoji: Partial(Emoji),
+    /// HEX colors used for super reaction
+    burst_colors: [][]const u8,
+};
+
+/// https://discord.com/developers/docs/resources/channel#get-reactions-reaction-types
+pub const ReactionType = enum {
+    Normal,
+    Burst,
+};
+
+/// https://discord.com/developers/docs/resources/channel#reaction-count-details-object
+pub const ReactionCountDetails = struct {
+    /// Count of super reactions
+    burst: isize,
+    ///
+    normal: isize,
+};
+
+/// https://discord.com/developers/docs/resources/channel#message-object-message-activity-structure
+pub const MessageActivity = struct {
+    /// Type of message activity
+    type: MessageActivityTypes,
+    /// `party_id` from a Rich Presence event
+    party_id: ?Snowflake = null,
+};
+
+/// https://discord.com/developers/docs/resources/channel#message-object-message-reference-structure
+pub const MessageReference = struct {
+    /// Type of reference
+    type: ?MessageReferenceType = null,
+    /// id of the originating message
+    message_id: ?Snowflake = null,
+    ///
+    /// id of the originating message's channel
+    /// Note: `channel_id` is optional when creating a reply, but will always be present when receiving an event/response that includes this data model.,
+    ///
+    channel_id: ?Snowflake = null,
+    /// id of the originating message's guild
+    guild_id: ?Snowflake = null,
+    /// When sending, whether to error if the referenced message doesn't exist instead of sending as a normal (non-reply) message, default true
+    fail_if_not_exists: bool,
+};
+
+/// https://discord.com/developers/docs/resources/channel#message-reference-object-message-reference-types
+pub const MessageReferenceType = enum {
+    ///
+    /// A standard reference used by replies.
+    ///
+    /// @remarks
+    /// When the type is set to this value, the field referenced_message on the message will be present
+    ///
+    Default,
+    ///
+    /// Reference used to point to a message at a point in time.
+    ///
+    /// @remarks
+    /// When the type is set to this value, the field message_snapshot on the message will be present
+    ///
+    /// This value can only be used for basic messages;
+    /// i.e. messages which do not have strong bindings to a non global entity.
+    /// Thus we support only messages with `DEFAULT` or `REPLY` types, but disallowed if there are any polls, calls, or components.
+    ///
+    Forward,
+};
+
+/// https://discord.com/developers/docs/resources/channel#message-snapshot-object-message-snapshot-structure
+pub const MessageSnapshot = struct {
     /// https://discord.com/developers/docs/resources/channel#message-object
-    pub const Message = struct {
-        /// id of the message
-        id: Snowflake,
-        /// id of the channel the message was sent in
-        channel_id: Snowflake,
-        /// id of the guild the message was sent in
-        guild_id: ?Snowflake = null,
-        /// The author of this message
-        author: User,
-        /// Member properties for this message's author
-        member: ?Member = null,
-        /// Contents of the message
+    /// Minimal subset of fields in the forwarded message
+    message: struct {
         content: ?[]const u8 = null,
-        /// When this message was sent
         timestamp: []const u8,
-        /// When this message was edited (or null if never)
         edited_timestamp: ?[]const u8 = null,
-        /// Whether this was a TTS message
-        tts: bool,
-        /// Whether this message mentions everyone
-        mention_everyone: bool,
-        /// Users specifically mentioned in the message
-        mentions: []User,
-        /// Roles specifically mentioned in this message
-        mention_roles: ?[][]const u8 = null,
-        /// Channels specifically mentioned in this message
-        mention_channels: ?[]ChannelMention = null,
-        /// Any attached files
-        attachments: []Attachment,
-        /// Any embedded content
-        embeds: []Embed,
-        /// Reactions to the message
-        reactions: ?[]Reaction = null,
-        /// Whether this message is pinned
-        pinned: bool,
-        /// If the message is generated by a webhook, this is the webhook's id
-        webhook_id: ?Snowflake = null,
-        /// Type of message
-        type: MessageTypes,
-        /// Sent with Rich Presence-related chat embeds
-        activity: ?MessageActivity = null,
-        /// Sent with Rich Presence-related chat embeds
-        application: ?Partial(Application) = null,
-        /// Application id if the message is an Interaction or application-owned webhook
-        application_id: ?Snowflake = null,
-        /// Message flags combined as a bitfield
-        flags: ?MessageFlags = null,
-        /// The stickers sent with the message
-        stickers: ?[]Sticker = null,
-        /// The referenced message (for replies)
-        referenced_message: ?*Message = null,
-        /// Sent if the message is a response to an Interaction
-        interaction: ?MessageInteraction = null,
-        /// The components related to this message
-        components: ?[]MessageComponent = null,
-        /// Sent if the message contains stickers
-        sticker_items: ?[]StickerItem = null,
-        /// Approximate position of the message in a thread
-        position: ?isize = null,
-        /// The poll object
-        poll: ?Poll = null,
-        /// The call associated with the message
-        call: ?MessageCall = null,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#message-call-object
-    pub const MessageCall = struct {
-        /// Array of user object ids that participated in the call
-        participants: [][]const u8,
-        /// Time when call ended
-        ended_timestamp: []const u8,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#channel-mention-object
-    pub const ChannelMention = struct {
-        /// id of the channel
-        id: Snowflake,
-        /// id of the guild containing the channel
-        guild_id: Snowflake,
-        /// The type of channel
-        type: isize,
-        /// The name of the channel
-        name: []const u8,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#reaction-object
-    pub const Reaction = struct {
-        /// Total isize of times this emoji has been used to react (including super reacts)
-        count: isize,
-        ///
-        count_details: ReactionCountDetails,
-        /// Whether the current user reacted using this emoji
-        me: bool,
-        ///
-        me_burst: bool,
-        /// Emoji information
-        emoji: Partial(Emoji),
-        /// HEX colors used for super reaction
-        burst_colors: [][]const u8,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#get-reactions-reaction-types
-    pub const ReactionType = enum {
-        Normal,
-        Burst,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#reaction-count-details-object
-    pub const ReactionCountDetails = struct {
-        /// Count of super reactions
-        burst: isize,
-        ///
-        normal: isize,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#message-object-message-activity-structure
-    pub const MessageActivity = struct {
-        /// Type of message activity
-        type: MessageActivityTypes,
-        /// `party_id` from a Rich Presence event
-        party_id: ?Snowflake = null,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#message-object-message-reference-structure
-    pub const MessageReference = struct {
-        /// Type of reference
-        type: ?MessageReferenceType = null,
-        /// id of the originating message
-        message_id: ?Snowflake = null,
-        ///
-        /// id of the originating message's channel
-        /// Note: `channel_id` is optional when creating a reply, but will always be present when receiving an event/response that includes this data model.,
-        ///
-        channel_id: ?Snowflake = null,
-        /// id of the originating message's guild
-        guild_id: ?Snowflake = null,
-        /// When sending, whether to error if the referenced message doesn't exist instead of sending as a normal (non-reply) message, default true
-        fail_if_not_exists: bool,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#message-reference-object-message-reference-types
-    pub const MessageReferenceType = enum {
-        ///
-        /// A standard reference used by replies.
-        ///
-        /// @remarks
-        /// When the type is set to this value, the field referenced_message on the message will be present
-        ///
-        Default,
-        ///
-        /// Reference used to point to a message at a point in time.
-        ///
-        /// @remarks
-        /// When the type is set to this value, the field message_snapshot on the message will be present
-        ///
-        /// This value can only be used for basic messages;
-        /// i.e. messages which do not have strong bindings to a non global entity.
-        /// Thus we support only messages with `DEFAULT` or `REPLY` types, but disallowed if there are any polls, calls, or components.
-        ///
-        Forward,
-    };
-
-    /// https://discord.com/developers/docs/resources/channel#message-snapshot-object-message-snapshot-structure
-    pub const MessageSnapshot = struct {
-        /// https://discord.com/developers/docs/resources/channel#message-object
-        /// Minimal subset of fields in the forwarded message
-        message: struct {
-        content: ?[]const u8 = null,
-            timestamp: []const u8,
-        edited_timestamp: ?[]const u8 = null,
-            mentions: []struct {
-                username: []const u8,
-        global_name: ?[]const u8 = null,
-        locale: ?[]const u8 = null,
-        flags: ?isize = null,
-        premium_type: ?PremiumTypes = null,
-        public_flags: ?isize = null,
-        accent_color: ?isize = null,
-                id: Snowflake,
-                discriminator: []const u8,
-        avatar: ?[]const u8 = null,
-        bot: ?bool = null,
-        system: ?bool = null,
-        mfa_enabled: ?bool = null,
-        verified: ?bool = null,
-        email: ?[]const u8 = null,
-        banner: ?[]const u8 = null,
-        avatar_decoration_data: ?AvatarDecorationData = null,
-        member: ?Partial(Member) = null,
-            },
-        mention_roles: ?[][]const u8 = null,
-            type: MessageTypes,
-        flags: ?MessageFlags = null,
-        stickers: ?[]Sticker = null,
-        components: ?[]MessageComponent = null,
-        sticker_items: ?[]StickerItem = null,
-            attachments: []Attachment,
-            embeds: []Embed,
+        mentions: []struct {
+            username: []const u8,
+            global_name: ?[]const u8 = null,
+            locale: ?[]const u8 = null,
+            flags: ?isize = null,
+            premium_type: ?PremiumTypes = null,
+            public_flags: ?isize = null,
+            accent_color: ?isize = null,
+            id: Snowflake,
+            discriminator: []const u8,
+            avatar: ?[]const u8 = null,
+            bot: ?bool = null,
+            system: ?bool = null,
+            mfa_enabled: ?bool = null,
+            verified: ?bool = null,
+            email: ?[]const u8 = null,
+            banner: ?[]const u8 = null,
+            avatar_decoration_data: ?AvatarDecorationData = null,
+            member: ?Partial(Member) = null,
         },
-    };
+        mention_roles: ?[][]const u8 = null,
+        type: MessageTypes,
+        flags: ?MessageFlags = null,
+        stickers: ?[]Sticker = null,
+        components: ?[]MessageComponent = null,
+        sticker_items: ?[]StickerItem = null,
+        attachments: []Attachment,
+        embeds: []Embed,
+    },
+};
 
-    /// https://discord.com/developers/docs/interactions/receiving-and-responding#message-interaction-object-message-interaction-structure
-    pub const MessageInteraction = struct {
-        /// Id of the interaction
-        id: Snowflake,
-        /// The type of interaction
-        type: InteractionTypes,
-        /// The name of the ApplicationCommand including the name of the subcommand/subcommand group
-        name: []const u8,
-        /// The user who invoked the interaction
-        user: User,
-        /// The member who invoked the interaction in the guild
-        member: ?Partial(Member) = null,
-    };
+/// https://discord.com/developers/docs/interactions/receiving-and-responding#message-interaction-object-message-interaction-structure
+pub const MessageInteraction = struct {
+    /// Id of the interaction
+    id: Snowflake,
+    /// The type of interaction
+    type: InteractionTypes,
+    /// The name of the ApplicationCommand including the name of the subcommand/subcommand group
+    name: []const u8,
+    /// The user who invoked the interaction
+    user: User,
+    /// The member who invoked the interaction in the guild
+    member: ?Partial(Member) = null,
+};
 
-    /// https://discord.com/developers/docs/resources/channel#message-interaction-metadata-object-message-interaction-metadata-structure
-    pub const MessageInteractionMetadata = struct {
-        /// Id of the interaction
-        id: Snowflake,
-        /// The type of interaction
-        type: InteractionTypes,
-        /// User who triggered the interaction
-        user: User,
-        // IDs for installation context(s) related to an interaction
-        // authorizing_integration_owners: Partial(AutoArrayHashMap(ApplicationIntegrationType, []const u8)),
-        /// ID of the original response message, present only on follow-up messages
-        original_response_message_id: ?Snowflake = null,
-        /// ID of the message that contained interactive component, present only on messages created from component interactions
-        interacted_message_id: ?Snowflake = null,
-        /// Metadata for the interaction that was used to open the modal, present only on modal submit interactions
-        /// TAKES A POINTER
-        triggering_interaction_metadata: ?*MessageInteractionMetadata = null,
-    };
+/// https://discord.com/developers/docs/resources/channel#message-interaction-metadata-object-message-interaction-metadata-structure
+pub const MessageInteractionMetadata = struct {
+    /// Id of the interaction
+    id: Snowflake,
+    /// The type of interaction
+    type: InteractionTypes,
+    /// User who triggered the interaction
+    user: User,
+    // IDs for installation context(s) related to an interaction
+    // authorizing_integration_owners: Partial(AutoArrayHashMap(ApplicationIntegrationType, []const u8)),
+    /// ID of the original response message, present only on follow-up messages
+    original_response_message_id: ?Snowflake = null,
+    /// ID of the message that contained interactive component, present only on messages created from component interactions
+    interacted_message_id: ?Snowflake = null,
+    /// Metadata for the interaction that was used to open the modal, present only on modal submit interactions
+    /// TAKES A POINTER
+    triggering_interaction_metadata: ?*MessageInteractionMetadata = null,
+};
 
-    pub const AllowedMentions = struct {
-        /// An array of allowed mention types to parse from the content.
-        parse: []AllowedMentionTypes,
-        /// Array of role_ids to mention (Max size of 100)
-        roles: []Snowflake,
-        /// Array of user_ids to mention (Max size of 100)
-        users: []Snowflake,
-        /// For replies, whether to mention the author of the message being replied to (default false)
-        replied_user: ?bool = null,
-    };
+pub const AllowedMentions = struct {
+    /// An array of allowed mention types to parse from the content.
+    parse: []AllowedMentionTypes,
+    /// Array of role_ids to mention (Max size of 100)
+    roles: []Snowflake,
+    /// Array of user_ids to mention (Max size of 100)
+    users: []Snowflake,
+    /// For replies, whether to mention the author of the message being replied to (default false)
+    replied_user: ?bool = null,
+};
 
-    pub const GetMessagesQuery = struct {
-        /// Get messages around this message ID,
-        around: ?Snowflake = null,
-        ///  Get messages before this message ID
-        before: ?Snowflake = null,
-        /// Get messages after this message ID
-        after: ?Snowflake = null,
-        /// Max number of messages to return (1-100),
-        limit: ?usize = null,
+pub const GetMessagesQuery = struct {
+    /// Get messages around this message ID,
+    around: ?Snowflake = null,
+    ///  Get messages before this message ID
+    before: ?Snowflake = null,
+    /// Get messages after this message ID
+    after: ?Snowflake = null,
+    /// Max number of messages to return (1-100),
+    limit: ?usize = null,
 };
