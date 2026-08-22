@@ -78,11 +78,11 @@ pub fn CacheTables(comptime Table: TableTemplate) type {
 pub fn CacheLike(comptime K: type, comptime V: type) type {
     return struct {
         ptr: *anyopaque,
-        putFn: *const fn(*anyopaque, K, V) anyerror!void,
-        getFn: *const fn(*anyopaque, K) ?V,
-        removeFn: *const fn(*anyopaque, K) void,
-        containsFn: *const fn(*anyopaque, K) bool,
-        countFn: *const fn(*anyopaque) usize,
+        putFn: *const fn (*anyopaque, K, V) anyerror!void,
+        getFn: *const fn (*anyopaque, K) ?V,
+        removeFn: *const fn (*anyopaque, K) void,
+        containsFn: *const fn (*anyopaque, K) bool,
+        countFn: *const fn (*anyopaque) usize,
 
         pub fn put(self: CacheLike(K, V), key: K, value: V) !void {
             return self.putFn(self.ptr, key, value);
@@ -159,7 +159,7 @@ pub fn DefaultCache(comptime K: type, comptime V: type) type {
         map: std.AutoHashMap(K, V),
 
         pub fn init(allocator: std.mem.Allocator) DefaultCache(K, V) {
-                return .{ .allocator = allocator, .map = .init(allocator) };
+            return .{ .allocator = allocator, .map = .init(allocator) };
         }
 
         pub fn cache(self: *Self) CacheLike(K, V) {

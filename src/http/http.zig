@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +17,7 @@
 
 const std = @import("std");
 const mem = std.mem;
-const io = std.io;
+const Io = std.Io;
 const http = std.http;
 const json = std.json;
 const json_helpers = @import("../utils/json.zig");
@@ -27,16 +28,7 @@ pub const DiscordError = @import("../errors.zig").DiscordError;
 pub const BASE_URL = "https://discord.com/api/v10";
 
 // zig fmt: off
-pub const MakeRequestError = (
-       std.fmt.BufPrintError
-    || http.Client.ConnectTcpError
-    || http.Client.Request.WaitError
-    || http.Client.Request.FinishError
-    || http.Client.Request.Writer.Error
-    || http.Client.Request.Reader.Error
-    || std.Uri.ResolveInPlaceError
-    || error{StreamTooLong}
-);
+pub const MakeRequestError = anyerror;
 // zig fmt: on
 
 pub const FetchReq = struct {
@@ -46,28 +38,33 @@ pub const FetchReq = struct {
     body: std.ArrayList(u8),
     /// internal
     extra_headers: std.ArrayList(http.Header),
-    query_params: std.StringArrayHashMap([]const u8),
+    query_params: std.StringHashMap([]const u8),
 
     pub fn init(allocator: mem.Allocator, token: []const u8) FetchReq {
-        const client = http.Client{ .allocator = allocator };
+        const client = http.Client{
+            .allocator = allocator,
+            .io = std.Options.debug_io,
+        };
         return FetchReq{
             .allocator = allocator,
             .client = client,
             .token = token,
-            .body = std.ArrayList(u8).init(allocator),
-            .extra_headers = std.ArrayList(http.Header).init(allocator),
-            .query_params = std.StringArrayHashMap([]const u8).init(allocator),
+            .body = .empty,
+            .extra_headers = .empty,
+            .query_params = std.StringHashMap([]const u8).init(allocator),
         };
     }
 
     pub fn deinit(self: *FetchReq) void {
         self.client.deinit();
-        self.body.deinit();
+        self.body.deinit(self.allocator);
+        self.extra_headers.deinit(self.allocator);
+        self.query_params.deinit();
     }
 
     pub fn addHeader(self: *FetchReq, name: []const u8, value: ?[]const u8) !void {
         if (value) |some|
-            try self.extra_headers.append(http.Header{ .name = name, .value = some });
+            try self.extra_headers.append(self.allocator, http.Header{ .name = name, .value = some });
     }
 
     pub fn addQueryParam(self: *FetchReq, name: []const u8, value: anytype) !void {
@@ -78,22 +75,21 @@ pub const FetchReq = struct {
     }
 
     fn formatQueryParams(self: *FetchReq) ![]const u8 {
-        var query = std.ArrayListUnmanaged(u8){};
-        const writer = query.writer(self.allocator);
-
         if (self.query_params.count() == 0)
             return "";
 
-        _ = try writer.write("?");
+        var query: std.ArrayList(u8) = .empty;
+        errdefer query.deinit(self.allocator);
+
+        try query.append(self.allocator, '?');
         var it = self.query_params.iterator();
+        var first = true;
         while (it.next()) |kv| {
-            _ = try writer.write(kv.key_ptr.*);
-            _ = try writer.write("=");
-            _ = try writer.write(kv.value_ptr.*);
-            if (it.next()) |_| {
-                try writer.writeByte('&');
-                continue;
-            }
+            if (!first) try query.append(self.allocator, '&');
+            first = false;
+            try query.appendSlice(self.allocator, kv.key_ptr.*);
+            try query.append(self.allocator, '=');
+            try query.appendSlice(self.allocator, kv.value_ptr.*);
         }
 
         return query.toOwnedSlice(self.allocator);
@@ -102,85 +98,69 @@ pub const FetchReq = struct {
     pub fn get(self: *FetchReq, comptime T: type, path: []const u8) !Result(T) {
         const result = try self.makeRequest(.GET, path, null);
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        const output = try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        const output = try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
         return output;
     }
 
     pub fn delete(self: *FetchReq, path: []const u8) !Result(void) {
         const result = try self.makeRequest(.DELETE, path, null);
         if (result.status != .no_content)
-            return try json_helpers.parseRight(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseRight(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
 
     pub fn patch(self: *FetchReq, comptime T: type, path: []const u8, object: anytype) !Result(T) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{}, string.writer());
-        const result = try self.makeRequest(.PATCH, path, try string.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{})});
+        const result = try self.makeRequest(.PATCH, path, payload);
 
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn patch2(self: *FetchReq, path: []const u8, object: anytype) !void {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{}, string.writer());
-        const result = try self.makeRequest(.PATCH, path, try string.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{})});
+        const result = try self.makeRequest(.PATCH, path, payload);
 
         if (result.status != .no_content)
-            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
 
     pub fn put(self: *FetchReq, comptime T: type, path: []const u8, object: anytype) !Result(T) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{}, string.writer());
-        const result = try self.makeRequest(.PUT, path, try string.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{})});
+        const result = try self.makeRequest(.PUT, path, payload);
 
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn put2(self: *FetchReq, comptime T: type, path: []const u8, object: anytype) !Result(T) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{}, string.writer());
-        const result = try self.makeRequest(.PUT, path, try string.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{})});
+        const result = try self.makeRequest(.PUT, path, payload);
 
         if (result.status == .no_content)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn put3(self: *FetchReq, path: []const u8) !Result(void) {
         const result = try self.makeRequest(.PUT, path, null);
 
         if (result.status != .no_content)
-            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
@@ -189,50 +169,40 @@ pub const FetchReq = struct {
         const result = try self.makeRequest(.PUT, path, null);
 
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn put5(self: *FetchReq, path: []const u8, object: anytype) !Result(void) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{}, string.writer());
-        const result = try self.makeRequest(.PUT, path, try self.body.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{})});
+        const result = try self.makeRequest(.PUT, path, payload);
 
         if (result.status != .no_content)
-            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
 
     pub fn post(self: *FetchReq, comptime T: type, path: []const u8, object: anytype) !Result(T) {
         var buf: [4096]u8 = undefined;
-        var writer = io.Writer.fixed(&buf);
-
-        var stringify: json.Stringify = .{
-            .writer = &writer,
-            .options = .{ .emit_null_optional_fields = true, },
-        };
-        try stringify.write(object);
-        const result = try self.makeRequest(.POST, path, writer.buffered());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{ .emit_null_optional_fields = true })});
+        const result = try self.makeRequest(.POST, path, payload);
 
         if (result.status != .ok and result.status != .created and result.status != .accepted)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn post2(self: *FetchReq, comptime T: type, path: []const u8) !Result(T) {
         const result = try self.makeRequest(.POST, path, null);
 
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn post3(
@@ -243,34 +213,22 @@ pub const FetchReq = struct {
         files: []const FileData,
     ) !Result(T) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{
-            .emit_null_optional_fields = true,
-        }, string.writer());
-        const result = try self.makeRequestWithFiles(.POST, path, try string.toOwnedSlice(), files);
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{ .emit_null_optional_fields = true })});
+        const result = try self.makeRequestWithFiles(.POST, path, payload, files);
 
         if (result.status != .ok)
-            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
-        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice());
+        return try json_helpers.parseRight(DiscordError, T, self.allocator, try self.body.toOwnedSlice(self.allocator));
     }
 
     pub fn post4(self: *FetchReq, path: []const u8, object: anytype) !Result(void) {
         var buf: [4096]u8 = undefined;
-        var fba = std.heap.FixedBufferAllocator.init(&buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        errdefer string.deinit();
-
-        try json.stringify(object, .{
-            .emit_null_optional_fields = true,
-        }, string.writer());
-        const result = try self.makeRequest(.POST, path, try string.toOwnedSlice());
+        const payload = try std.fmt.bufPrint(&buf, "{f}", .{json.fmt(object, .{ .emit_null_optional_fields = true })});
+        const result = try self.makeRequest(.POST, path, payload);
 
         if (result.status != .no_content)
-            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
@@ -279,7 +237,7 @@ pub const FetchReq = struct {
         const result = try self.makeRequest(.POST, path, null);
 
         if (result.status != .no_content)
-            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice());
+            return try json_helpers.parseLeft(DiscordError, void, self.allocator, try self.body.toOwnedSlice(self.allocator));
 
         return .ok({});
     }
@@ -293,15 +251,18 @@ pub const FetchReq = struct {
         var buf: [256]u8 = undefined;
         const constructed = try std.fmt.bufPrint(&buf, "{s}{s}{s}", .{ BASE_URL, path, try self.formatQueryParams() });
 
-        try self.extra_headers.append(http.Header{ .name = "Accept", .value = "application/json" });
-        try self.extra_headers.append(http.Header{ .name = "Content-Type", .value = "application/json" });
-        try self.extra_headers.append(http.Header{ .name = "Authorization", .value = self.token });
+        try self.extra_headers.append(self.allocator, http.Header{ .name = "Accept", .value = "application/json" });
+        try self.extra_headers.append(self.allocator, http.Header{ .name = "Content-Type", .value = "application/json" });
+        try self.extra_headers.append(self.allocator, http.Header{ .name = "Authorization", .value = self.token });
+
+        var response_writer: Io.Writer.Allocating = .fromArrayList(self.allocator, &self.body);
+        defer self.body = response_writer.toArrayList();
 
         var fetch_options = http.Client.FetchOptions{
             .location = http.Client.FetchOptions.Location{ .url = constructed },
             .method = method,
-            .extra_headers = try self.extra_headers.toOwnedSlice(),
-            .response_storage = .{ .dynamic = &self.body },
+            .extra_headers = try self.extra_headers.toOwnedSlice(self.allocator),
+            .response_writer = &response_writer.writer,
         };
 
         if (to_post != null) {
@@ -320,7 +281,7 @@ pub const FetchReq = struct {
         files: []const FileData,
     ) !http.Client.FetchResult {
         var form_fields = try std.ArrayList(FormField).initCapacity(self.allocator, files.len + 1);
-        errdefer form_fields.deinit();
+        defer form_fields.deinit(self.allocator);
 
         for (files, 0..) |file, i|
             form_fields.appendAssumeCapacity(.{
@@ -346,7 +307,7 @@ pub const FetchReq = struct {
         const body = try createMultiPartFormDataBody(
             self.allocator,
             &boundary,
-            try form_fields.toOwnedSlice(),
+            form_fields.items,
         );
 
         const headers: std.http.Client.Request.Headers = .{
@@ -362,7 +323,7 @@ pub const FetchReq = struct {
             .keep_alive = false,
             .server_header_buffer = &server_header_buffer,
             .headers = headers,
-            .extra_headers = try self.extra_headers.toOwnedSlice(),
+            .extra_headers = try self.extra_headers.toOwnedSlice(self.allocator),
         });
         defer request.deinit();
         request.transfer_encoding = .{ .content_length = body.len };
@@ -409,36 +370,35 @@ fn createMultiPartFormDataBody(
     boundary: []const u8,
     fields: []const FormField,
 ) error{OutOfMemory}![]const u8 {
-    var body: std.ArrayListUnmanaged(u8) = .{};
+    var body: std.ArrayList(u8) = .empty;
     errdefer body.deinit(allocator);
-    const writer = body.writer(allocator);
 
     for (fields) |field| {
-        try writer.print("--{s}\r\n", .{boundary});
+        try body.print(allocator, "--{s}\r\n", .{boundary});
 
         if (field.filename) |filename| {
-            try writer.print("Content-Disposition: form-data; name=\"{s}\"; filename=\"{s}\"\r\n", .{ field.name, filename });
+            try body.print(allocator, "Content-Disposition: form-data; name=\"{s}\"; filename=\"{s}\"\r\n", .{ field.name, filename });
         } else {
-            try writer.print("Content-Disposition: form-data; name=\"{s}\"\r\n", .{field.name});
+            try body.print(allocator, "Content-Disposition: form-data; name=\"{s}\"\r\n", .{field.name});
         }
 
         switch (field.content_type) {
             .default => {
                 if (field.filename != null) {
-                    try writer.writeAll("Content-Type: application/octet-stream\r\n");
+                    try body.appendSlice(allocator, "Content-Type: application/octet-stream\r\n");
                 }
             },
             .omit => {},
             .override => |content_type| {
-                try writer.print("Content-Type: {s}\r\n", .{content_type});
+                try body.print(allocator, "Content-Type: {s}\r\n", .{content_type});
             },
         }
 
-        try writer.writeAll("\r\n");
-        try writer.writeAll(field.value);
-        try writer.writeAll("\r\n");
+        try body.appendSlice(allocator, "\r\n");
+        try body.appendSlice(allocator, field.value);
+        try body.appendSlice(allocator, "\r\n");
     }
-    try writer.print("--{s}--\r\n", .{boundary});
+    try body.print(allocator, "--{s}--\r\n", .{boundary});
 
     return try body.toOwnedSlice(allocator);
 }

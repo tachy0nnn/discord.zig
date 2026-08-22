@@ -49,10 +49,7 @@ pub fn AssociativeArray(comptime E: type, comptime V: type) type {
         pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: json.ParseOptions) !@This() {
             var map: std.EnumMap(E, V) = .{};
 
-            const value = try std.json.innerParse(std.json.Value, allocator, src, .{
-                .ignore_unknown_fields = true,
-                .max_value_len = MAX_VALUE_LEN
-            });
+            const value = try std.json.innerParse(std.json.Value, allocator, src, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
 
             var iterator = value.object.iterator();
 
@@ -71,11 +68,10 @@ pub fn AssociativeArray(comptime E: type, comptime V: type) type {
                 map.put(@enumFromInt(int), val);
             }
 
-            return .{.map = map};
+            return .{ .map = map };
         }
     };
 }
-
 
 /// assumes object.value[key] is of type `E` and the result thereof maps to the tagged union value
 /// assumes `key` is a field present in all members of type `U`
@@ -98,10 +94,7 @@ pub fn DiscriminatedUnion(comptime U: type, comptime key: []const u8) type {
             // extract next value, which should be an object
             // and should have a key "type" or whichever key might be
 
-            const value = try std.json.innerParse(std.json.Value, allocator, src, .{
-                .ignore_unknown_fields = true,
-                .max_value_len = MAX_VALUE_LEN
-            });
+            const value = try std.json.innerParse(std.json.Value, allocator, src, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
 
             const discriminator = value.object.get(key) orelse
                 @panic("couldn't find property " ++ key ++ "in raw object");
@@ -131,10 +124,7 @@ pub fn Record(comptime T: type) type {
     return struct {
         map: std.StringHashMapUnmanaged(T),
         pub fn jsonParse(allocator: std.mem.Allocator, src: anytype, _: json.ParseOptions) !@This() {
-            const value = try std.json.innerParse(std.json.Value, allocator, src, .{
-                .ignore_unknown_fields = true,
-                .max_value_len = MAX_VALUE_LEN
-            });
+            const value = try std.json.innerParse(std.json.Value, allocator, src, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
 
             errdefer value.object.deinit();
             var iterator = value.object.iterator();
@@ -183,7 +173,6 @@ pub fn Either(comptime L: type, comptime R: type) type {
         }
     };
 }
-
 
 /// meant to handle a `std.json.Value` and handling the deinitialization thereof
 pub fn Owned(comptime T: type) type {
@@ -243,7 +232,6 @@ pub fn parseRight(comptime L: type, comptime R: type, child_allocator: std.mem.A
     return owned;
 }
 
-
 /// same as `std.json.parseFromSlice`
 pub fn parseLeft(comptime L: type, comptime R: type, child_allocator: std.mem.Allocator, data: []const u8) json.ParseError(json.Scanner)!OwnedEither(L, R) {
     var owned: OwnedEither(L, R) = .{
@@ -265,5 +253,3 @@ pub fn parseLeft(comptime L: type, comptime R: type, child_allocator: std.mem.Al
 
     return owned;
 }
-
-

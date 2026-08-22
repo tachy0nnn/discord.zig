@@ -11,7 +11,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const zlib = b.dependency("zlib", .{});
+    const zlib = b.dependency("zlib", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const dzig = b.addModule("discord.zig", .{
         .root_source_file = b.path("src/root.zig"),
@@ -19,7 +22,8 @@ pub fn build(b: *std.Build) void {
     });
 
     dzig.addImport("ws", websocket.module("websocket"));
-    dzig.addImport("zlib", zlib.module("zlib"));
+    dzig.addIncludePath(zlib.path("."));
+    dzig.linkLibrary(zlib.artifact("z"));
 
     const marin = b.addExecutable(.{
         .name = "marin",
@@ -34,7 +38,8 @@ pub fn build(b: *std.Build) void {
 
     marin.root_module.addImport("discord", dzig);
     marin.root_module.addImport("ws", websocket.module("websocket"));
-    marin.root_module.addImport("zlib", zlib.module("zlib"));
+    marin.root_module.addIncludePath(zlib.path("."));
+    marin.root_module.linkLibrary(zlib.artifact("z"));
 
     if (install_tests) b.installArtifact(marin);
 
@@ -57,7 +62,24 @@ pub fn build(b: *std.Build) void {
     });
 
     lib.root_module.addImport("ws", websocket.module("websocket"));
-    lib.root_module.addImport("zlib", zlib.module("zlib"));
+    lib.root_module.addIncludePath(zlib.path("."));
+    lib.root_module.linkLibrary(zlib.artifact("z"));
+
+    const unit_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/shard/zlib_stream.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+        .use_llvm = true,
+    });
+    unit_tests.root_module.addIncludePath(zlib.path("."));
+    unit_tests.root_module.linkLibrary(zlib.artifact("z"));
+
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_unit_tests.step);
 
     // docs
     const docs_step = b.step("docs", "Generate documentation");

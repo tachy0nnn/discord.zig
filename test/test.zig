@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -65,19 +66,14 @@ fn message_create(_: *Shard, message: Discord.Message) !void {
     }
 }
 
-pub fn main() !void {
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
     session = try allocator.create(Discord.Session);
     session.* = Discord.init(allocator);
     defer session.deinit();
 
-    const env_map = try allocator.create(std.process.EnvMap);
-    env_map.* = try std.process.getEnvMap(allocator);
-    defer env_map.deinit();
-
-    const token = env_map.get("DISCORD_TOKEN") orelse {
+    const token = init.environ_map.get("DISCORD_TOKEN") orelse {
         @panic("DISCORD_TOKEN not found in environment variables");
     };
 
