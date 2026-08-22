@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -18,18 +19,32 @@ const ws = @import("ws");
 const builtin = @import("builtin");
 
 const std = @import("std");
-const net = std.net;
-const crypto = std.crypto;
-const tls = std.crypto.tls;
 const mem = std.mem;
 const http = std.http;
-const io = std.io;
+const io = std.Io;
+const json = std.json;
+const sync = @import("../utils/sync.zig");
+const ThreadPool = sync.ThreadPool;
+const Mutex = sync.Mutex;
+const RwLock = sync.RwLock;
+const ZlibStream = @import("zlib_stream.zig").ZlibStream;
+
+const WindowsSockets = if (builtin.os.tag == .windows) struct {
+    extern "ws2_32" fn WSAStartup(version: u16, data: *anyopaque) callconv(.winapi) i32;
+} else struct {};
 
 const MAX_VALUE_LEN = 0x1000;
 
-// todo use this to read compressed messages
-const zlib = @import("zlib");
-const json = std.json;
+fn ensureWindowsSockets() void {
+    if (builtin.os.tag == .windows) {
+        // std.Io uses Windows AFD handles, while the websocket package also calls Winsock APIs for socket options.
+        // so we need to initialize Winsock before those APIs are reached
+        // so i guess this IS related to: https://github.com/ziglang/zig/issues/21492
+        var data: [512]u8 align(8) = undefined;
+        if (WindowsSockets.WSAStartup(0x0202, @ptrCast(&data)) != 0)
+            @panic("WSAStartup failed");
+    }
+}
 
 const IdentifyProperties = @import("util.zig").IdentifyProperties;
 const GatewayInfo = @import("util.zig").GatewayInfo;
@@ -42,6 +57,10 @@ const Log = @import("../utils/core.zig").Log;
 const GatewayDispatchEvent = @import("../utils/core.zig").GatewayDispatchEvent;
 const Bucket = @import("bucket.zig").Bucket;
 const default_identify_properties = @import("util.zig").default_identify_properties;
+
+fn milliTimestamp() i64 {
+    return std.Io.Clock.real.now(std.Options.debug_io).toMilliseconds();
+}
 
 const Types = @import("../structures/types.zig");
 const Opcode = Types.GatewayOpcodes;
@@ -90,14 +109,14 @@ sequence: std.atomic.Value(isize) = .init(0),
 heart: Heart = .{ .heartbeatInterval = 45000, .lastBeat = 0 },
 
 // we only need to know whether this shard is part of a thread pool, and if so, initialise it with a pointer thereon
-sharder_pool: ?*std.Thread.Pool = null,
+sharder_pool: ?*ThreadPool = null,
 handler: GatewayDispatchEvent,
 packets: std.ArrayListUnmanaged(u8),
-inflator: zlib.Decompressor,
+inflator: ZlibStream,
 
 ///useful for closing the conn
-ws_mutex: std.Thread.Mutex = .{},
-rw_mutex: std.Thread.RwLock = .{},
+ws_mutex: Mutex = .{},
+rw_mutex: RwLock = .{},
 log: Log = .no,
 
 pub fn resumable(self: *Self) bool {
@@ -152,8 +171,8 @@ pub fn init(allocator: mem.Allocator, shard_id: usize, total_shards: usize, sett
     options: ShardOptions,
     run: GatewayDispatchEvent,
     log: Log,
-    sharder_pool: ?*std.Thread.Pool = null,
-}) zlib.Error!Self {
+    sharder_pool: ?*ThreadPool = null,
+}) !Self {
     return Self{
         .options = ShardOptions{
             .info = GatewayBotInfo{
@@ -175,8 +194,8 @@ pub fn init(allocator: mem.Allocator, shard_id: usize, total_shards: usize, sett
         .session_id = undefined,
         .handler = settings.run,
         .log = settings.log,
-        .packets = .{},
-        .inflator = try zlib.Decompressor.init(allocator, .{ .header = .zlib_or_gzip }),
+        .packets = .empty,
+        .inflator = try ZlibStream.init(allocator),
         .bucket = Bucket.init(
             allocator,
             Self.calculateSafeRequests(settings.options.ratelimit_options),
@@ -196,7 +215,9 @@ inline fn calculateSafeRequests(options: RatelimitOptions) usize {
 }
 
 inline fn _connect_ws(allocator: mem.Allocator, url: []const u8) !ws.Client {
-    var conn = try ws.Client.init(allocator, .{
+    ensureWindowsSockets();
+
+    var conn = try ws.Client.init(std.Options.debug_io, allocator, .{
         .tls = true, // important: zig.http doesn't support this, type shit
         .port = 443,
         .host = url,
@@ -215,10 +236,11 @@ inline fn _connect_ws(allocator: mem.Allocator, url: []const u8) !ws.Client {
 
 pub fn deinit(self: *Self) void {
     self.client.deinit();
+    self.packets.deinit(self.allocator);
+    self.inflator.deinit();
 }
 
-pub const ReadError =
-    std.posix.SetSockOptError || json.ParseError(json.Scanner) || tls.Client.InitError(tls.Client.StreamInterface) || zlib.Error || mem.Allocator.Error || std.Thread.SpawnError;
+pub const ReadError = anyerror;
 
 /// listens for messages
 fn readMessage(self: *Self, _: anytype) (ReadError || SendError || ReconnectError)!void {
@@ -230,23 +252,26 @@ fn readMessage(self: *Self, _: anytype) (ReadError || SendError || ReconnectErro
                 \\couldn't read message because {s}
                 \\exiting thread
             , .{@errorName(err)});
-            return;
+            return err;
         } orelse unreachable;
         defer self.client.done(msg);
 
         try self.packets.appendSlice(self.allocator, msg.data);
 
-        // end of zlib
-        if (!std.mem.endsWith(u8, msg.data, &[4]u8{ 0x00, 0x00, 0xFF, 0xFF }))
+        // discord does one Z_SYNC_FLUSH suffix per Gateway payload;
+        // check the buffer so the suffix is still detected
+        // if a read boundary happens to split those four bytes
+        if (!ZlibStream.hasFlushSuffix(self.packets.items))
             continue;
 
-        const buf = try self.packets.toOwnedSlice(self.allocator);
+        const compressed = self.packets.items;
 
-        const decompressed = self.inflator.decompressAllAlloc(buf) catch |err| {
+        const decompressed = self.inflator.decompress(compressed) catch |err| {
             self.logif("couldn't decompress because {s}", .{@errorName(err)});
-            continue;
+            return err;
         };
         defer self.allocator.free(decompressed);
+        self.packets.items.len = 0;
 
         // std.debug.print("Decompressed: {s}\n", .{decompressed});
 
@@ -319,7 +344,7 @@ fn readMessage(self: *Self, _: anytype) (ReadError || SendError || ReconnectErro
 
                 var prng = std.Random.DefaultPrng.init(0);
                 const jitter = std.Random.float(prng.random(), f64);
-                self.heart.lastBeat = std.time.milliTimestamp();
+                self.heart.lastBeat = milliTimestamp();
 
                 self.logif("new heartbeater for shard #{d}", .{self.id});
 
@@ -330,7 +355,7 @@ fn readMessage(self: *Self, _: anytype) (ReadError || SendError || ReconnectErro
                 // perhaps this needs a mutex?
                 self.rw_mutex.lock();
                 defer self.rw_mutex.unlock();
-                self.heart.lastBeat = std.time.milliTimestamp();
+                self.heart.lastBeat = milliTimestamp();
             },
             .Heartbeat => {
                 self.ws_mutex.lock();
@@ -368,10 +393,18 @@ pub fn heartbeat(self: *Self, initial_jitter: f64) SendHeartbeatError!void {
     while (true) {
         // basecase
         if (jitter == 1.0) {
-            std.Thread.sleep(std.time.ns_per_ms * self.heart.heartbeatInterval);
+            std.Io.sleep(
+                std.Options.debug_io,
+                std.Io.Duration.fromNanoseconds(@intCast(std.time.ns_per_ms * self.heart.heartbeatInterval)),
+                .awake,
+            ) catch unreachable;
         } else {
             const timeout = @as(f64, @floatFromInt(self.heart.heartbeatInterval)) * jitter;
-            std.Thread.sleep(std.time.ns_per_ms * @as(u64, @intFromFloat(timeout)));
+            std.Io.sleep(
+                std.Options.debug_io,
+                std.Io.Duration.fromNanoseconds(@intCast(std.time.ns_per_ms * @as(u64, @intFromFloat(timeout)))),
+                .awake,
+            ) catch unreachable;
         }
 
         // self.logif("heartbeating on shard {d}", .{self.id});
@@ -385,7 +418,7 @@ pub fn heartbeat(self: *Self, initial_jitter: f64) SendHeartbeatError!void {
         try self.send(false, .{ .op = @intFromEnum(Opcode.Heartbeat), .d = seq });
         self.ws_mutex.unlock();
 
-        if ((std.time.milliTimestamp() - last) > (5000 * self.heart.heartbeatInterval)) {
+        if ((milliTimestamp() - last) > (5000 * self.heart.heartbeatInterval)) {
             try self.close(ShardSocketCloseCodes.ZombiedConnection, "Zombied connection");
             @panic("zombied conn");
         }
@@ -401,29 +434,20 @@ pub fn reconnect(self: *Self) ReconnectError!void {
     try self.connect();
 }
 
-pub const ConnectError =
-    net.TcpConnectToAddressError || crypto.tls.Client.InitError(net.Stream) ||
-    net.Stream.ReadError || net.IPParseError ||
-    crypto.Certificate.Bundle.RescanError || net.TcpConnectToHostError ||
-    std.fmt.BufPrintError || mem.Allocator.Error;
+pub const ConnectError = anyerror;
 
 pub fn connect(self: *Self) ConnectError!void {
-    //std.time.sleep(std.time.ms_per_s * 5);
+    // Sleeping here is intentionally omitted; reconnect immediately.
+    self.packets.clearRetainingCapacity();
+    try self.inflator.reset();
     self.client = try Self._connect_ws(self.allocator, self.gatewayUrl());
 
-    self.readMessage(null) catch |err| switch (err) {
-        // weird Windows error
-        // https://github.com/ziglang/zig/issues/21492
-        net.Stream.ReadError.NotOpenForReading => {
-            std.debug.panic("Shard {d}: Stream closed unexpectedly", .{self.id}); // still check your intents
-        },
-        else => {
-            // log that the connection died, but don't stop the bot
-            self.logif("Shard {d} closed with error: {s}", .{ self.id, @errorName(err) });
-            self.logif("Attempting to reconnect...", .{});
-            // reconnect
-            self.reconnect() catch unreachable;
-        },
+    self.readMessage(null) catch |err| {
+        // log that the connection died, but don't stop the bot
+        self.logif("Shard {d} closed with error: {s}", .{ self.id, @errorName(err) });
+        self.logif("Attempting to reconnect...", .{});
+        // reconnect
+        self.reconnect() catch unreachable;
     };
 }
 
@@ -444,7 +468,7 @@ pub fn close(self: *Self, code: ShardSocketCloseCodes, reason: []const u8) Close
     };
 }
 
-pub const SendError = net.Stream.WriteError || io.Writer.Error;
+pub const SendError = anyerror;
 
 pub fn send(self: *Self, _: bool, data: anytype) SendError!void {
     var buf: [1000]u8 = undefined;
@@ -465,7 +489,7 @@ pub fn handleEventNoError(self: *Self, name: []const u8, payload_ptr: *json.Valu
     self.logif("Shard {d} dispatching {s}", .{ self.id, name });
 
     var stdout_buf: [1024]u8 = undefined;
-    var stdout = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout = std.Io.File.stdout().writer(std.Options.debug_io, &stdout_buf);
 
     self.handleEvent(name, payload_ptr.*) catch |err| {
         self.logif(
@@ -478,9 +502,11 @@ pub fn handleEventNoError(self: *Self, name: []const u8, payload_ptr: *json.Valu
             diagnostics.getLine(),
             diagnostics.getByteOffset(),
         });
-        var stringify = std.json.Stringify {
+        var stringify = std.json.Stringify{
             .writer = &stdout.interface,
-            .options = .{ .whitespace = .indent_4, },
+            .options = .{
+                .whitespace = .indent_4,
+            },
         };
         stringify.write(payload_ptr) catch {};
     };
@@ -852,6 +878,56 @@ pub fn handleEvent(self: *Self, name: []const u8, payload: json.Value) !void {
         const stage = try json.parseFromValue(Types.StageInstance, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
 
         try event(self, stage.value);
+    };
+
+    if (mem.eql(u8, name, "VOICE_STATE_UPDATE")) if (self.handler.voice_state_update) |event| {
+        const voice = try json.parseFromValue(Types.VoiceState, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, voice.value);
+    };
+
+    if (mem.eql(u8, name, "VOICE_SERVER_UPDATE")) if (self.handler.voice_server_update) |event| {
+        const voice = try json.parseFromValue(Types.VoiceServerUpdate, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, voice.value);
+    };
+
+    if (mem.eql(u8, name, "VOICE_CHANNEL_EFFECT_SEND")) if (self.handler.voice_channel_effect_send) |event| {
+        const effect = try json.parseFromValue(Types.VoiceChannelEffectSend, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, effect.value);
+    };
+
+    if (mem.eql(u8, name, "VOICE_CHANNEL_START_TIME_UPDATE")) if (self.handler.voice_channel_start_time_update) |event| {
+        const update = try json.parseFromValue(Types.VoiceChannelStartTimeUpdate, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, update.value);
+    };
+
+    if (mem.eql(u8, name, "VOICE_CHANNEL_STATUS_UPDATE")) if (self.handler.voice_channel_status_update) |event| {
+        const update = try json.parseFromValue(Types.VoiceChannelStatusUpdate, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, update.value);
+    };
+
+    if (mem.eql(u8, name, "GUILD_SOUNDBOARD_SOUND_CREATE")) if (self.handler.guild_soundboard_sound_create) |event| {
+        const sound = try json.parseFromValue(Types.SoundboardSound, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, sound.value);
+    };
+
+    if (mem.eql(u8, name, "GUILD_SOUNDBOARD_SOUND_UPDATE")) if (self.handler.guild_soundboard_sound_update) |event| {
+        const sound = try json.parseFromValue(Types.SoundboardSound, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, sound.value);
+    };
+
+    if (mem.eql(u8, name, "GUILD_SOUNDBOARD_SOUND_DELETE")) if (self.handler.guild_soundboard_sound_delete) |event| {
+        const sound = try json.parseFromValue(Types.SoundboardSoundDelete, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, sound.value);
+    };
+
+    if (mem.eql(u8, name, "GUILD_SOUNDBOARD_SOUNDS_UPDATE")) if (self.handler.guild_soundboard_sounds_update) |event| {
+        const sounds = try json.parseFromValue(Types.SoundboardSoundsUpdate, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, sounds.value);
+    };
+
+    if (mem.eql(u8, name, "SOUNDBOARD_SOUNDS")) if (self.handler.soundboard_sounds) |event| {
+        const sounds = try json.parseFromValue(Types.SoundboardSoundsEvent, self.allocator, payload, .{ .ignore_unknown_fields = true, .max_value_len = MAX_VALUE_LEN });
+        try event(self, sounds.value);
     };
 
     if (mem.eql(u8, name, "AUTO_MODERATION_RULE_CREATE")) if (self.handler.auto_moderation_rule_create) |event| {

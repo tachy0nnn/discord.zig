@@ -26,7 +26,7 @@ pub fn ConnectQueue(comptime T: type) type {
         pub fn init(allocator: mem.Allocator, concurrency: usize, interval_time: u64) !ConnectQueue(T) {
             return .{
                 .allocator = allocator,
-                .dequeue = std.PriorityDequeue(RequestWithShard, void, eq).init(allocator, {}),
+                .dequeue = std.PriorityDequeue(RequestWithShard, void, eq).initContext({}),
                 .remaining = concurrency,
                 .interval_time = interval_time,
                 .concurrency = concurrency,
@@ -34,12 +34,12 @@ pub fn ConnectQueue(comptime T: type) type {
         }
 
         pub fn deinit(self: *ConnectQueue(T)) void {
-            self.dequeue.deinit();
+            self.dequeue.deinit(self.allocator);
         }
 
         pub fn push(self: *ConnectQueue(T), req: RequestWithShard) !void {
             if (self.remaining == 0) {
-                return self.dequeue.add(req);
+                return self.dequeue.push(self.allocator, req);
             }
             self.remaining -= 1;
 
@@ -56,13 +56,17 @@ pub fn ConnectQueue(comptime T: type) type {
                 return;
             }
 
-            return self.dequeue.add(req);
+            return self.dequeue.push(self.allocator, req);
         }
 
         fn startInterval(self: *ConnectQueue(T)) !void {
             while (self.running) {
-                std.Thread.sleep(std.time.ns_per_ms * (self.interval_time / self.concurrency));
-                const req: ?RequestWithShard = self.dequeue.removeMin(); // pop front
+                std.Io.sleep(
+                    std.Options.debug_io,
+                    std.Io.Duration.fromNanoseconds(@intCast(std.time.ns_per_ms * (self.interval_time / self.concurrency))),
+                    .awake,
+                ) catch unreachable;
+                const req: ?RequestWithShard = self.dequeue.popMin(); // pop front
 
                 while (self.dequeue.count() == 0 and req == null) {}
 
@@ -84,4 +88,3 @@ pub fn ConnectQueue(comptime T: type) type {
         }
     };
 }
-

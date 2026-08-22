@@ -6,6 +6,10 @@ const atomic = std.atomic;
 const Thread = std.Thread;
 const PriorityQueue = std.PriorityQueue;
 
+fn milliTimestamp() u64 {
+    return @intCast(std.Io.Clock.real.now(std.Options.debug_io).toMilliseconds());
+}
+
 pub const Bucket = struct {
     pub const RequestWithPrio = struct {
         callback: *const fn () void,
@@ -19,6 +23,7 @@ pub const Bucket = struct {
     /// The queue of requests to acquire an available request.
     /// Mapped by (shardId, RequestWithPrio)
     queue: PriorityQueue(RequestWithPrio, void, lessthan),
+    allocator: mem.Allocator,
 
     limit: usize,
     refill_interval: u64,
@@ -38,7 +43,8 @@ pub const Bucket = struct {
 
     pub fn init(allocator: mem.Allocator, limit: usize, refill_interval: u64, refill_amount: usize) Bucket {
         return .{
-            .queue = PriorityQueue(RequestWithPrio, void, lessthan).init(allocator, {}),
+            .queue = PriorityQueue(RequestWithPrio, void, lessthan).initContext({}),
+            .allocator = allocator,
             .limit = limit,
             .refill_interval = refill_interval,
             .refill_amount = refill_amount,
@@ -66,21 +72,25 @@ pub const Bucket = struct {
             }
             const thread = try Thread.spawn(.{}, Bucket.timeout, .{self});
             thread.detach;
-            self.refills_at = time.milliTimestamp() + self.refill_interval;
+            self.refills_at = milliTimestamp() + self.refill_interval;
         }
     }
 
     fn timeout(self: *Bucket) void {
         while (!self.should_stop.load(.monotonic)) {
             self.refill();
-            time.sleep(time.ns_per_ms * self.refill_interval);
+            std.Io.sleep(
+                std.Options.debug_io,
+                std.Io.Duration.fromNanoseconds(@intCast(time.ns_per_ms * self.refill_interval)),
+                .awake,
+            ) catch unreachable;
         }
     }
 
     pub fn processQueue(self: *Bucket) std.Thread.SpawnError!void {
         if (self.processing) return;
 
-        while (self.queue.remove()) |first_element| {
+        while (self.queue.pop()) |first_element| {
             if (self.remaining() != 0) {
                 first_element.callback();
                 self.used += 1;
@@ -88,11 +98,17 @@ pub const Bucket = struct {
                 if (!self.should_stop.load(.monotonic)) {
                     const thread = try Thread.spawn(.{}, Bucket.timeout, .{self});
                     thread.detach;
-                    self.refills_at = time.milliTimestamp() + self.refill_interval;
+                    self.refills_at = milliTimestamp() + self.refill_interval;
                 }
             } else if (self.refills_at) |ra| {
-                const now = time.milliTimestamp();
-                if (ra > now) time.sleep(time.ns_per_ms * (ra - now));
+                const now = milliTimestamp();
+                if (ra > now) {
+                    std.Io.sleep(
+                        std.Options.debug_io,
+                        std.Io.Duration.fromNanoseconds(@intCast(time.ns_per_ms * (ra - now))),
+                        .awake,
+                    ) catch unreachable;
+                }
             }
         }
 
@@ -100,7 +116,7 @@ pub const Bucket = struct {
     }
 
     pub fn acquire(self: *Bucket, rq: RequestWithPrio) !void {
-        try self.queue.add(rq);
+        try self.queue.push(self.allocator, rq);
         try self.processQueue();
     }
 };

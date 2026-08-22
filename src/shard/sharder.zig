@@ -1,6 +1,7 @@
 //! ISC License
 //!
 //! Copyright (c) 2024-2025 Yuzu
+//! Copyright (c) 2026 Yon
 //!
 //! Permission to use, copy, modify, and/or distribute this software for any
 //! purpose with or without fee is hereby granted, provided that the above
@@ -24,6 +25,7 @@ const ConnectQueue = @import("connect_queue.zig").ConnectQueue;
 const GatewayDispatchEvent = @import("../utils/core.zig").GatewayDispatchEvent;
 const Log = @import("../utils/core.zig").Log;
 const Shard = @import("shard.zig");
+const ThreadPool = @import("../utils/sync.zig").ThreadPool;
 const std = @import("std");
 const mem = std.mem;
 const debug = @import("../utils/core.zig").debug;
@@ -35,12 +37,12 @@ allocator: mem.Allocator,
 
 /// Queue for managing shard connections
 connect_queue: ConnectQueue(Shard),
-shards: std.AutoArrayHashMap(usize, Shard),
+shards: std.AutoHashMap(usize, Shard),
 handler: GatewayDispatchEvent,
 
 /// where we dispatch work for every thread, threads must be spawned upon shard creation
 /// make sure the address of workers is stable
-workers: std.Thread.Pool = undefined,
+workers: ThreadPool = .{},
 
 /// configuration settings
 options: SessionOptions,
@@ -88,7 +90,7 @@ pub fn init(allocator: mem.Allocator, settings: struct {
         .allocator = allocator,
         .connect_queue = try ConnectQueue(Shard).init(allocator, concurrency, 5000),
         .shards = .init(allocator),
-        .workers = undefined,
+        .workers = .{},
         .shard_details = ShardDetails{
             .token = settings.authorization,
             .intents = settings.intents,
@@ -112,6 +114,7 @@ pub fn init(allocator: mem.Allocator, settings: struct {
 pub fn deinit(self: *Self) void {
     self.connect_queue.deinit();
     self.shards.deinit();
+    self.workers.deinit();
 }
 
 pub fn forceIdentify(self: *Self, shard_id: usize) !void {

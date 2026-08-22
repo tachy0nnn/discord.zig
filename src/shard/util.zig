@@ -56,4 +56,3 @@ pub const ShardDetails = struct {
     /// Identify properties to use
     properties: IdentifyProperties = default_identify_properties,
 };
-
